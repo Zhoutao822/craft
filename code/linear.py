@@ -9,7 +9,7 @@ boston = load_boston()
 print(boston['DESCR'])
 
 (x_train, y_train), (x_test, y_test) = boston_housing.load_data()
-# scaler = preprocessing.StandardScaler().fit(x_test)
+# scaler = preprocessing.StandardScaler().fit(x_train)
 
 # x_train = scaler.transform(x_train)
 # x_test = scaler.transform(x_test)
@@ -43,7 +43,7 @@ def input_train():
 
 def input_test():
     dataset = tf.data.Dataset.from_tensor_slices((createDict(x_test), y_test))
-    dataset = dataset.shuffle(1000).batch(64)
+    dataset = dataset.shuffle(1000).batch(1)
     return dataset.make_one_shot_iterator().get_next()
 
 model = tf.estimator.LinearRegressor(

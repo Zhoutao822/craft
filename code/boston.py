@@ -60,7 +60,7 @@ w = standLR(x_train, y_train)
 pre = predict(x_test, w)
 loss = mse(pre, y_test)
 print('MSE for testSet is: {:.3f}'.format(loss))
-#%%
+
 plt.figure(figsize=(4, 4))
 plt.plot([0, 60], [0, 60])
 plt.scatter(pre.A, y_test)
@@ -104,7 +104,12 @@ def lwlrPre(x_test, x, y, k=1.0):
 
 pre = lwlrPre(x_test_scale, x_train_scale, y_train, k=1.1)
 loss = mse(pre, y_test)
-print(loss)
+print('MSE for testSet is: {:.3f}'.format(loss))
+
+plt.figure(figsize=(4, 4))
+plt.plot([0, 60], [0, 60])
+plt.scatter(pre.A, y_test)
+plt.show()
 
 #%%
 def ridgeRegress(x, y, lam=0.2):
@@ -114,12 +119,6 @@ def ridgeRegress(x, y, lam=0.2):
             如果数据的特征比样本点还多，就不能再使用上面介绍的的线性回归和局部现行回归了，因为计算 (xTx)^(-1)会出现错误。
             如果特征比样本点还多（n > m），也就是说，输入数据的矩阵x不是满秩矩阵。非满秩矩阵在求逆时会出现问题。
             为了解决这个问题，我们下边讲一下：岭回归，这是我们要讲的第一种缩减方法。
-        Args：
-            xMat：样本的特征数据，即 feature
-            yMat：每个样本对应的类别标签，即目标变量，实际值
-            lam：引入的一个λ值，使得矩阵非奇异
-        Returns：
-            经过岭回归公式计算得到的回归系数
     '''
     xMat = np.mat(x)
     yMat = np.mat(y).T
@@ -134,7 +133,7 @@ def ridgeRegress(x, y, lam=0.2):
 w = ridgeRegress(x_train_scale, y_train, lam=0.2)
 pre = predict(x_test_scale, w)
 loss = mse(pre, y_test)
-print(loss)
+print('MSE for testSet is: {:.3f}'.format(loss))
 
 plt.figure(figsize=(4, 4))
 plt.plot([0, 60], [0, 60])

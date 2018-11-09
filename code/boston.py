@@ -16,6 +16,10 @@ df = pd.read_csv(filepath, skiprows=0, header=1)
 data = boston['data']
 target = boston['target']
 
+filepath = boston['filename'] #调用load_boston()会下载数据集csv文件到本地，通过filename获取路径
+df = pd.read_csv(filepath, skiprows=0, header=1) #通过pandas读取csv文件，由于sklearn下载的csv文件第0行是样例数和属性数，第1行是属性名称，从第2行开始才是数据，所以设置skiprows跳过第0行，设置header特征行为1
+df.describe() #显示数据集统计信息
+#%%
 x_train, x_test, y_train, y_test = train_test_split(data, target, test_size=0.2, shuffle=True)
 
 scaler = preprocessing.StandardScaler().fit(x_train)

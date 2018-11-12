@@ -11,23 +11,11 @@ from sklearn import preprocessing
 # x_train = scaler.transform(x_train)
 # x_test = scaler.transform(x_test)
 #%%
+column_names = ['CRIM', 'ZN', 'INDUS', 'CHAS', 'NOX', 'RM', 'AGE', 'DIS', 'RAD',
+                'TAX', 'PTRATIO', 'B', 'LSTAT']
 
 def createDict(X):
-    return {
-        'CRIM': X[:, 0].ravel(),
-        'ZN': X[:, 1].ravel(),
-        'INDUS': X[:, 2].ravel(),
-        'CHAS': X[:, 3].ravel(),
-        'NOX': X[:, 4].ravel(),
-        'RM': X[:, 5].ravel(),
-        'AGE': X[:, 6].ravel(),
-        'DIS': X[:, 7].ravel(),
-        'RAD': X[:, 8].ravel(),
-        'TAX': X[:, 9].ravel(),
-        'PTRATIO': X[:, 10].ravel(),
-        'B': X[:, 11].ravel(),
-        'LSTAT': X[:, 12].ravel(),
-    }
+    return {column_names[i]: X[:, i].ravel() for i in range(len(column_names))}
 
 feature_columns = []
 for key in createDict(x_train).keys():
@@ -35,18 +23,21 @@ for key in createDict(x_train).keys():
 
 def input_train():
     dataset = tf.data.Dataset.from_tensor_slices((createDict(x_train), y_train))
-    dataset = dataset.shuffle(1000).batch(64).repeat()
+    dataset = dataset.shuffle(1000).batch(32).repeat()
     return dataset.make_one_shot_iterator().get_next()
 
 def input_test():
     dataset = tf.data.Dataset.from_tensor_slices((createDict(x_test), y_test))
-    dataset = dataset.shuffle(1000).batch(64)
+    dataset = dataset.shuffle(1000).batch(32)
     return dataset.make_one_shot_iterator().get_next()
 
 model = tf.estimator.LinearRegressor(
     feature_columns=feature_columns,
-    model_dir="C://Users//Admin//Desktop//model1"
-    )
+    model_dir="C://Users//Admin//Desktop//model//regressor",
+    optimizer=tf.train.FtrlOptimizer(
+      learning_rate=0.1,
+      l1_regularization_strength=0.001
+    ))
 #%%
 model.train(input_fn=input_train, steps=20000)
 

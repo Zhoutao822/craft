@@ -7,9 +7,9 @@ from sklearn import preprocessing
 
 (x_train, y_train), (x_test, y_test) = boston_housing.load_data()
 
-scaler = preprocessing.StandardScaler().fit(x_train)
-x_train = scaler.transform(x_train)
-x_test = scaler.transform(x_test)
+# scaler = preprocessing.StandardScaler().fit(x_train)
+# x_train = scaler.transform(x_train)
+# x_test = scaler.transform(x_test)
 #%%
 
 def createDict(X):
@@ -45,7 +45,7 @@ def input_test():
 
 model = tf.estimator.LinearRegressor(
     feature_columns=feature_columns,
-    model_dir="C://Users//Admin//Desktop//model"
+    model_dir="C://Users//Admin//Desktop//model1"
     )
 #%%
 model.train(input_fn=input_train, steps=20000)

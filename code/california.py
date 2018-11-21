@@ -1,4 +1,3 @@
-
 #%%
 from sklearn.datasets import fetch_california_housing
 
@@ -12,7 +11,4 @@ print(rawData['feature_names'])
 #%%
 from sklearn.datasets import fetch_covtype
 
-data = fetch_covtype()
-
-print(data['DESCR'])
-print(data['feature_names'])
+(data,target) = fetch_covtype(return_X_y=True)

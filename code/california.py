@@ -61,53 +61,62 @@ df['HousePrice'] = target
 df = df[(df['MedInc'] < 10) & (df['AveRooms'] < 15) & (df['AveBedrms'] < 4) & (df['Population'] < 8000) & (df['AveOccup'] < 6)]
 df.describe()
 
-#%%
-print(fetch_california_housing()['DESCR'])
-
-#%%
-corr = df.corr()
-sns.heatmap(corr)
-#%%
 df['TotalHouse'] = df['Population'] / df['AveOccup']
-df['TotalInc'] = df['MedInc'] / df['Population']
-df['AveOtherrms'] = df['AveRooms'] / df['AveBedrms']
-for name in df.columns.values.tolist():
-    sns.relplot(x=name, y='HousePrice',data=df)
+df['TotalInc'] = df['MedInc'] * df['Population']
+df['AveOtherrms'] = df['AveRooms'] - df['AveBedrms']
 
+df['AreaPrice'] = -1
+for i in range(11):
+    for j in range(12):
+        rows = (df['Latitude'] >= 32. + i) & \
+        (df['Latitude'] < 33. + i) & \
+        (df['Longitude'] >= -125. + j) & \
+        (df['Longitude'] < -124. + j) 
+        df.loc[rows, ['AreaPrice']] = df[rows]['HousePrice'].mean()
+
+df = df.drop(columns=['HouseAge', 'Latitude', 'Longitude'])
+df.describe()
 
 #%%
-sns.relplot(x='AveOtherrms', y='HousePrice',data=df)
-sns.relplot(x='MedInc', y='HousePrice',data=df)
+linear_feature_names = ['MedInc', 'AveOtherrms', 'AreaPrice']
+linear_feature_columns = []
+for name in linear_feature_names:
+    linear_feature_columns.append(tf.feature_column.numeric_column(key=name))
 
-#%%
-def inc_encode(inc):
-    if inc < 2:
-        return 1.5
-    elif inc < 3:
-        return 2.5
-    elif inc < 4:
-        return 3.5
-    elif inc < 5:
-        return 4.5
-    elif inc < 6:
-        return 5.5
-    elif inc < 7:
-        return 6.5
-    elif inc < 8:
-        return 7.5
-    elif inc < 9:
-        return 8.5
-    elif inc < 10:
-        return 9.5
-    elif inc < 11:
-        return 10.5
-    else: 
-        return 11.5
+dnn_feature_names = df.columns.values.tolist()
+dnn_feature_names.remove('HousePrice')
+dnn_feature_columns = []
+for name in dnn_feature_names:
+    dnn_feature_columns.append(tf.feature_column.numeric_column(key=name))
 
-df['MedInc'] = df.MedInc.map(inc_encode)
+trainset = df.sample(frac=0.8)
+testset = df.drop(trainset.index.tolist(), axis=0)
 
-sns.violinplot(x='MedInc', y='HousePrice', data=df)
+model = tf.estimator.DNNLinearCombinedRegressor(
+    linear_feature_columns=linear_feature_columns,
+    linear_optimizer=tf.train.FtrlOptimizer(learning_rate=0.01),
+    dnn_feature_columns=dnn_feature_columns,
+    dnn_optimizer=tf.train.ProximalAdagradOptimizer(
+        learning_rate=0.01,
+        l1_regularization_strength=0.0001
+    ),
+    dnn_hidden_units=[64, 32, 16],
+    model_dir="C://Users//Admin//Desktop//model//DNNLinearCombinedRegressor",
+)
 
+model.train(input_fn=tf.estimator.inputs.pandas_input_fn(
+    x=trainset,
+    y=trainset['HousePrice'],
+    batch_size=64, 
+    shuffle=True, 
+    num_epochs=100
+), max_steps=40000)
+
+model.evaluate(input_fn=tf.estimator.inputs.pandas_input_fn(
+    x=testset,
+    y=testset['HousePrice'],
+    shuffle=False
+))
 #%%
 sns.violinplot(x=df['HouseAge'])
 
@@ -139,42 +148,4 @@ df['HouseAge'] = df.HouseAge.map(age_encode)
 
 sns.violinplot(x='HouseAge', y='HousePrice', data=df)
 
-#%%
-sns.relplot(x='AveRooms', y='HousePrice',data=df)
 
-#%%
-sns.relplot(x='Latitude', y='Longitude',hue='HousePrice', data=df)
-
-#%%
-sns.relplot(x='Latitude', y='Longitude',size='HousePrice', data=df[:5000])
-
-#%%
-sns.violinplot(x=df['HousePrice'])
-
-#%%
-sns.relplot(x='Latitude', y='Longitude',size='HousePrice', data=df[df.HousePrice > 3.0])
-
-sns.relplot(x='Latitude', y='Longitude',size='HousePrice', data=df[df.HousePrice < 3.0])
-
-#%%
-for i in range(15):
-    sns.relplot(x='Latitude', y='Longitude',hue='HousePrice', data=df.loc[(df.HousePrice > 0.3+0.2*i) & (df.HousePrice < 0.5+0.2*i)])
-
-#%%
-for i in range(10):
-    sns.relplot(x='Latitude', y='Longitude',hue='HousePrice', data=df[df.HousePrice > 0.3+0.2*i])
-
-
-#%%
-df['AreaPrice'] = -1
-for i in range(11):
-    for j in range(12):
-        rows = (df['Latitude'] >= 32. + i) & \
-        (df['Latitude'] < 33. + i) & \
-        (df['Longitude'] >= -125. + j) & \
-        (df['Longitude'] < -124. + j) 
-        df.loc[rows, ['AreaPrice']] = df[rows]['HousePrice'].mean()
-
-df.describe()
-#%%
-sns.violinplot(x='AreaPrice', y='HousePrice',data=df)

@@ -100,17 +100,17 @@ model = tf.estimator.DNNLinearCombinedRegressor(
         learning_rate=0.01,
         l1_regularization_strength=0.0001
     ),
-    dnn_hidden_units=[64, 32, 16],
+    dnn_hidden_units=[16, 16, 8, 4],
     model_dir="C://Users//Admin//Desktop//model//DNNLinearCombinedRegressor",
 )
 
 model.train(input_fn=tf.estimator.inputs.pandas_input_fn(
     x=trainset,
     y=trainset['HousePrice'],
-    batch_size=64, 
+    batch_size=32, 
     shuffle=True, 
-    num_epochs=100
-), max_steps=40000)
+    num_epochs=200
+), max_steps=80000)
 
 model.evaluate(input_fn=tf.estimator.inputs.pandas_input_fn(
     x=testset,

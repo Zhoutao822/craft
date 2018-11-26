@@ -1,11 +1,17 @@
+#%%
 import tensorflow as tf
 import numpy as np
 from sklearn.datasets import fetch_covtype
 from sklearn.model_selection import train_test_split
+from sklearn import preprocessing
 from tensorflow import keras
 from tensorflow.python.keras import layers
 
 (data, target) = fetch_covtype(return_X_y=True)
+
+scaler = preprocessing.StandardScaler().fit(X=data)
+
+data = scaler.transform(data)
 
 x_train, x_test, y_train, y_test = train_test_split(data, target, shuffle=True, test_size=0.2)
 
@@ -14,17 +20,17 @@ y_test_onehot = tf.one_hot(y_test - 1, depth=7)
 target_onehot = tf.one_hot(target - 1, depth=7)
 
 BATCH_SIZE = 64
-EPOCHS = 50
+EPOCHS = 30
 STEPS_PER_EPOCH = 4000
 
-trainset = tf.data.Dataset.from_tensor_slices((x_train[:, :10], y_train_onehot))
+trainset = tf.data.Dataset.from_tensor_slices((x_train, y_train_onehot))
 trainset = trainset.batch(BATCH_SIZE).repeat()
 
-testset = tf.data.Dataset.from_tensor_slices((x_test[:, :10], y_test_onehot))
+testset = tf.data.Dataset.from_tensor_slices((x_test, y_test_onehot))
 testset = testset.batch(BATCH_SIZE).repeat()
 
 model = keras.Sequential([
-    layers.Dense(units=64, activation='relu', input_shape=(10,)),
+    layers.Dense(units=64, activation='relu', input_shape=(54,)),
     layers.Dense(units=64, activation='relu'),
     layers.Dense(units=32, activation='relu'),
     layers.Dense(units=16, activation='relu'),
@@ -32,7 +38,7 @@ model = keras.Sequential([
 ])
 
 model.compile(loss='categorical_crossentropy',
-    optimizer=tf.train.RMSPropOptimizer(0.01),
+    optimizer=tf.train.AdamOptimizer(0.01),
     metrics=['accuracy'])
 
 early_stop = tf.keras.callbacks.EarlyStopping(
@@ -69,12 +75,12 @@ class PrintLoss(keras.callbacks.Callback):
 # )
 
 model.fit(
-    x=data[:,:10],
+    x=data,
     y=target_onehot,
     epochs=EPOCHS,
     shuffle=True,
     validation_split=0.2,
     steps_per_epoch=STEPS_PER_EPOCH,
     validation_steps=STEPS_PER_EPOCH // 4,
-    callbacks=[tb_callback, ckpt_callback]
+    callbacks=[ckpt_callback]
 )

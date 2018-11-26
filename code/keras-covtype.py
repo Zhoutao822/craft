@@ -21,7 +21,7 @@ target_onehot = tf.one_hot(target - 1, depth=7)
 
 BATCH_SIZE = 64
 EPOCHS = 30
-STEPS_PER_EPOCH = 4000
+STEPS_PER_EPOCH = 6000
 
 trainset = tf.data.Dataset.from_tensor_slices((x_train, y_train_onehot))
 trainset = trainset.batch(BATCH_SIZE).repeat()
@@ -64,23 +64,23 @@ class PrintLoss(keras.callbacks.Callback):
         print('Epoch: {:03d} - loss: {:.5f} - acc: {:.5f} - \
         val_loss: {:.5f} - val_acc: {:.5f}'.format(epoch + 1, logs['loss'], logs['acc'], logs['val_loss'], logs['val_acc']))
 
-# history = model.fit(
-#     trainset,
-#     epochs=EPOCHS,
-#     steps_per_epoch=STEPS_PER_EPOCH,
-#     validation_data=testset,
-#     validation_steps=STEPS_PER_EPOCH // 4,
-#     verbose=0,
-#     callbacks=[PrintLoss()]
-# )
-
-model.fit(
-    x=data,
-    y=target_onehot,
+history = model.fit(
+    trainset,
     epochs=EPOCHS,
-    shuffle=True,
-    validation_split=0.2,
     steps_per_epoch=STEPS_PER_EPOCH,
+    validation_data=testset,
     validation_steps=STEPS_PER_EPOCH // 4,
-    callbacks=[ckpt_callback]
+    verbose=0,
+    callbacks=[PrintLoss()]
 )
+
+# model.fit(
+#     x=data,
+#     y=target_onehot,
+#     epochs=EPOCHS,
+#     shuffle=True,
+#     validation_split=0.2,
+#     steps_per_epoch=STEPS_PER_EPOCH,
+#     validation_steps=STEPS_PER_EPOCH // 4,
+#     callbacks=[ckpt_callback]
+# )

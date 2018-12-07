@@ -7,10 +7,9 @@ tfe = tf.contrib.eager
 
 print('Tensorflow version: ', tf.VERSION, '\n', 'Eager mode: ', tf.executing_eagerly())
 
-#%%
 learning_rate = 1e-4
-num_steps = 8000
-batch_size = 64
+num_steps = 20000
+batch_size = 32
 display_step = 100
 
 num_classes = 10
@@ -20,9 +19,12 @@ num_classes = 10
 print('train size:', x_train.shape, y_train.shape)
 print('test size:', x_test.shape, y_test.shape)
 
-dataset = tf.data.Dataset.from_tensor_slices(
-    (tf.reshape(tf.cast(x_train, tf.float32), shape=[-1, 28, 28, 1]), 
-    tf.one_hot(y_train, depth=10, axis=-1))).shuffle(1000).batch(batch_size)
+x_train = tf.reshape(tf.cast(x_train, tf.float32), shape=[-1, 28, 28, 1])
+x_test = tf.reshape(tf.cast(x_test, tf.float32), shape=[-1, 28, 28, 1])
+y_train = tf.one_hot(y_train, depth=10, axis=-1)
+y_test = tf.one_hot(y_test, depth=10, axis=-1)
+
+dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(1000).batch(batch_size)
 dataset_iter = tfe.Iterator(dataset)
 
 class CNN(tfe.Network):
@@ -101,6 +103,6 @@ for step in range(num_steps):
               "{:.4f}".format(average_acc))
         average_loss = 0.
         average_acc = 0.
-        test_acc = accuracy_fn(cnn, tf.reshape(tf.cast(x_test, tf.float32), shape=[-1, 28, 28, 1]), tf.one_hot(y_test, depth=10, axis=-1), False)
-        print('Testset accuracy: {:.4f}'.format(test_acc))
-
+        
+test_acc = accuracy_fn(cnn, x_test, y_test, False)
+print('Testset accuracy: {:.4f}'.format(test_acc))

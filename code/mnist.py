@@ -9,7 +9,7 @@ print('Tensorflow version: ', tf.VERSION, '\n', 'Eager mode: ', tf.executing_eag
 
 learning_rate = 1e-4
 num_steps = 20000
-batch_size = 32
+batch_size = 64
 display_step = 100
 
 num_classes = 10
@@ -86,7 +86,7 @@ for step in range(num_steps):
     batch_loss = loss_fn(cnn, x_batch, y_batch)
     average_loss += batch_loss
 
-    batch_accuracy = accuracy_fn(cnn, x_batch, y_batch, True)
+    batch_accuracy = accuracy_fn(cnn, x_batch, y_batch, False)
     average_acc += batch_accuracy
 
     if step == 0:

@@ -25,7 +25,7 @@ img_width = 150
 img_channels = 3
 
 # 为了测试代码，我们先不使用整个数据集，而是从原始数据集中划分出一小部分数据进行测试
-base_dir = '/root/ml/input/dogcat'
+base_dir = 'C:/Users/Admin/Downloads/dogvscat'
 original_dir = os.path.join(base_dir, 'train')
 
 train_dir = os.path.join(base_dir, 'train')
@@ -99,37 +99,36 @@ def image_input_fn(filenames, labels=None, shuffle=False, repeat_count=1, batch_
     dataset = dataset.batch(batch_size).repeat(repeat_count)
     return dataset
 
-#%%
-vgg16 = VGG16(
-    weights='imagenet',
-    include_top=False,
-    input_shape=(img_height, img_width, img_channels))
-model = Sequential([
-    vgg16,
-    layers.Flatten(),
-    layers.Dropout(0.5),
-    layers.Dense(1, activation='sigmoid')
-])
-vgg16.trainable = False
-
+# vgg16 = VGG16(
+#     weights='imagenet',
+#     include_top=False,
+#     input_shape=(img_height, img_width, img_channels))
 # model = Sequential([
-#     layers.Conv2D(32, 5, 2, padding='SAME', activation='relu', input_shape=(img_height, img_width, img_channels)),
-#     layers.MaxPool2D(strides=2, padding='SAME'),
-#     layers.Dropout(0.3),
-
-#     layers.Conv2D(64, 5, 2, padding='SAME', activation='relu'),
-#     layers.MaxPool2D(strides=2, padding='SAME'),
-#     layers.Dropout(0.3),
-    
-#     layers.Conv2D(128, 5, 2, padding='SAME', activation='relu'),
-#     layers.MaxPool2D(strides=2, padding='SAME'),
-#     layers.Dropout(0.3),
-
+#     vgg16,
 #     layers.Flatten(),
-#     layers.Dense(1024, activation='relu'),
 #     layers.Dropout(0.5),
 #     layers.Dense(1, activation='sigmoid')
 # ])
+# vgg16.trainable = False
+
+model = Sequential([
+    layers.Conv2D(32, 5, 2, padding='SAME', activation='relu', input_shape=(img_height, img_width, img_channels)),
+    layers.MaxPool2D(strides=2, padding='SAME'),
+    layers.Dropout(0.3),
+
+    layers.Conv2D(64, 5, 2, padding='SAME', activation='relu'),
+    layers.MaxPool2D(strides=2, padding='SAME'),
+    layers.Dropout(0.3),
+    
+    layers.Conv2D(128, 5, 2, padding='SAME', activation='relu'),
+    layers.MaxPool2D(strides=2, padding='SAME'),
+    layers.Dropout(0.3),
+
+    layers.Flatten(),
+    layers.Dense(1024, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(1, activation='sigmoid')
+])
 
 model.summary()
 
@@ -138,15 +137,16 @@ model.compile(
     loss='binary_crossentropy',
     metrics=['acc'])
 
-#%%
-MODEL_DIR = './modelvgg/'
+MODEL_DIR = './model/'
 checkpoint_path = MODEL_DIR + "cp-{epoch:04d}.ckpt"
 cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path, 
                                                 monitor='val_loss',
                                                 save_best_only=True,
                                                 verbose=1, 
                                                 save_weights_only=True, 
-                                                period=5)
+                                                period=2)
+
+model.load_weights('./model/cp-0030.ckpt')
 
 model.fit(
     image_input_fn(
@@ -163,7 +163,7 @@ model.fit(
         batch_size=50),
     epochs=epochs,
     steps_per_epoch=steps_per_epoch,
-    validation_steps=200,
+    validation_steps=100,
     callbacks=[cp_callback])
 #%%
 result = model.predict(
@@ -174,7 +174,7 @@ result = model.predict(
         batch_size=50), 
         steps=250)
 
-path = './submissionvgg.csv'
+path = './submission.csv'
 counter = range(1, len(result) + 1)
 result = np.array(result, np.float)
 result = np.squeeze(result)

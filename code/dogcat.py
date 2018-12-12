@@ -16,28 +16,28 @@ import shutil
 
 print('Tensorflow version: ', tf.VERSION)
 
-learning_rate = 1e-4
+learning_rate = 1e-3
 batch_size = 20
-epochs = 30
-steps_per_epoch = 1250
-img_height = 150
-img_width = 150
+epochs = 80
+steps_per_epoch = 1000
+img_height = 256
+img_width = 256
 img_channels = 3
 
 # 为了测试代码，我们先不使用整个数据集，而是从原始数据集中划分出一小部分数据进行测试
 base_dir = 'C:/Users/Admin/Downloads/dogvscat'
 original_dir = os.path.join(base_dir, 'train')
 
-train_dir = os.path.join(base_dir, 'train')
+train_dir = os.path.join(base_dir, 'small_train')
 eval_dir = os.path.join(base_dir, 'small_eval')
 test_dir = os.path.join(base_dir, 'test')
 
 #%%
-# if not os.path.exists(train_dir):
+# if not os.path.exists(eval_dir):
 #     os.mkdir(train_dir)
 #     os.mkdir(eval_dir)
 
-# for i in range(2500):
+# for i in range(2500, 12500):
 #     name = 'cat.{}.jpg'.format(i)
 #     src = os.path.join(original_dir, name)
 #     if i < 2000:
@@ -46,7 +46,7 @@ test_dir = os.path.join(base_dir, 'test')
 #         dst = os.path.join(eval_dir, name)
 #     shutil.copyfile(src, dst)
 
-# for i in range(2500):
+# for i in range(2500, 12500):
 #     name = 'dog.{}.jpg'.format(i)
 #     src = os.path.join(original_dir, name)
 #     if i < 2000:
@@ -112,20 +112,20 @@ def image_input_fn(filenames, labels=None, shuffle=False, repeat_count=1, batch_
 # vgg16.trainable = False
 
 model = Sequential([
-    layers.Conv2D(32, 5, 2, padding='SAME', activation='relu', input_shape=(img_height, img_width, img_channels)),
+    layers.Conv2D(32, 3, 1, padding='SAME', activation='relu', input_shape=(img_height, img_width, img_channels)),
     layers.MaxPool2D(strides=2, padding='SAME'),
-    layers.Dropout(0.3),
+    layers.Dropout(0.5),
 
-    layers.Conv2D(64, 5, 2, padding='SAME', activation='relu'),
+    layers.Conv2D(64, 3, 1, padding='SAME', activation='relu'),
     layers.MaxPool2D(strides=2, padding='SAME'),
-    layers.Dropout(0.3),
+    layers.Dropout(0.5),
     
-    layers.Conv2D(128, 5, 2, padding='SAME', activation='relu'),
+    layers.Conv2D(128, 3, 1, padding='SAME', activation='relu'),
     layers.MaxPool2D(strides=2, padding='SAME'),
-    layers.Dropout(0.3),
+    layers.Dropout(0.5),
 
     layers.Flatten(),
-    layers.Dense(1024, activation='relu'),
+    layers.Dense(512, activation='relu'),
     layers.Dropout(0.5),
     layers.Dense(1, activation='sigmoid')
 ])
@@ -144,9 +144,9 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(checkpoint_path,
                                                 save_best_only=True,
                                                 verbose=1, 
                                                 save_weights_only=True, 
-                                                period=2)
+                                                period=5)
 
-model.load_weights('./model/cp-0030.ckpt')
+# model.load_weights('./model/cp-0040.ckpt')
 
 model.fit(
     image_input_fn(

@@ -1,3 +1,10 @@
+# Copyright
+# License
+# ==============================================================================
+"""代码功能描述
+代码功能细节
+"""
+
 #%%
 from __future__ import division
 from __future__ import absolute_import

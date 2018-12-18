@@ -27,9 +27,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'train_steps', 1000, 'Train steps.')
 tf.app.flags.DEFINE_integer(
-    'train_batch_size', 64, 'Train batch size.')
+    'train_batch_size', 128, 'Train batch size.')
 tf.app.flags.DEFINE_integer(
-    'eval_batch_size', 64, 'Eval batch size.')    
+    'eval_batch_size', 100, 'Eval batch size.')    
 tf.app.flags.DEFINE_integer(
     'num_layers', 44, 'The number of layers of the model.')
 tf.app.flags.DEFINE_float(
@@ -44,6 +44,10 @@ tf.app.flags.DEFINE_float(
     'batch_norm_decay', 0.997, 'Decay for batch norm.')   
 tf.app.flags.DEFINE_float(
     'batch_norm_epsilon', 1e-5, 'Epsilon for batch norm.')   
+# tf.app.flags.DEFINE_integer(
+#     'num-inter-threads', 0, 'Number of threads to use for inter-op parallelism.')
+# tf.app.flags.DEFINE_integer(
+#     'num-intra-threads', 0, 'Number of threads to use for intra-op parallelism.')
 
 
 def get_model_fn(num_workers):
@@ -64,52 +68,54 @@ def get_model_fn(num_workers):
 
         with tf.variable_scope('resnet', reuse=False):
             with tf.name_scope('cpu') as name_scope:
-                loss, grads, preds = _calc_fn(
-                    is_training, weight_decay, features, labels,
-                    params['num_layers'], params['batch_norm_decay'],
-                    params['batch_norm_epsilon'])
-                update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, name_scope)
+                with tf.device('/cpu:0'):
+                    loss, grads, preds = _calc_fn(
+                        is_training, weight_decay, features, labels,
+                        params['num_layers'], params['batch_norm_decay'],
+                        params['batch_norm_epsilon'])
+                    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, name_scope)
         
-        num_batches_per_epoch = cifar10.Cifar10DataSet.num_examples_per_epoch(
-            'train') // (params['train_batch_size'] * num_workers)
-        boundaries = [
-            num_batches_per_epoch * x
-            for x in np.array([82, 123, 300], dtype=np.int64)
-        ]
-        staged_lr = [params['learning_rate'] * x for x in [1, 0.1, 0.01, 0.002]]
+        with tf.device('/cpu:0'):
+            num_batches_per_epoch = cifar10.Cifar10DataSet.num_examples_per_epoch(
+                'train') // (params['train_batch_size'] * num_workers)
+            boundaries = [
+                num_batches_per_epoch * x
+                for x in np.array([82, 123, 300], dtype=np.int64)
+            ]
+            staged_lr = [params['learning_rate'] * x for x in [1, 0.1, 0.01, 0.002]]
 
-        learning_rate = tf.train.piecewise_constant(
-            tf.train.get_global_step(), boundaries, staged_lr)
+            learning_rate = tf.train.piecewise_constant(
+                tf.train.get_global_step(), boundaries, staged_lr)
 
-        loss = tf.identity(loss, name='loss')
+            loss = tf.identity(loss, name='loss')
 
-        tensor_to_log = {'learning_rate': learning_rate, 'loss': loss}
+            tensor_to_log = {'learning_rate': learning_rate, 'loss': loss}
 
-        logging_hook = tf.train.LoggingTensorHook(
-            tensors=tensor_to_log, every_n_iter=100)
-        
-        counter_hook = tf.train.StepCounterHook(every_n_steps=10)
+            logging_hook = tf.train.LoggingTensorHook(
+                tensors=tensor_to_log, every_n_iter=100)
+            
+            counter_hook = tf.train.StepCounterHook(every_n_steps=10)
 
-        train_hooks = [logging_hook, counter_hook]
+            train_hooks = [logging_hook, counter_hook]
 
-        optimizer = tf.train.MomentumOptimizer(
-            learning_rate=learning_rate, momentum=momentum)
+            optimizer = tf.train.MomentumOptimizer(
+                learning_rate=learning_rate, momentum=momentum)
 
-        train_op = [
-            optimizer.apply_gradients(
-                grads, global_step=tf.train.get_global_step())
-        ]
-        train_op.extend(update_ops)
-        train_op = tf.group(*train_op)
+            train_op = [
+                optimizer.apply_gradients(
+                    grads, global_step=tf.train.get_global_step())
+            ]
+            train_op.extend(update_ops)
+            train_op = tf.group(*train_op)
 
-        predictions = {
-            'classes': preds['classes'],
-            'probabilities': preds['probabilities']
-        }
-        metrics = {
-            'accuracy':
-                tf.metrics.accuracy(labels, predictions['classes'])
-        }
+            predictions = {
+                'classes': preds['classes'],
+                'probabilities': preds['probabilities']
+            }
+            metrics = {
+                'accuracy':
+                    tf.metrics.accuracy(labels, predictions['classes'])
+            }
         return tf.estimator.EstimatorSpec(
             mode=mode,
             predictions=predictions,
@@ -164,16 +170,25 @@ def input_fn(data_dir,
     Returns:
 
     """
-    use_distortion = subset == 'train' and use_distortion_for_training
-    dataset = cifar10.Cifar10DataSet(data_dir, subset, use_distortion)
-    image_batch, label_batch = dataset.make_batch(batch_size)
-    return image_batch, label_batch
+    with tf.device('/cpu:0'):
+        use_distortion = subset == 'train' and use_distortion_for_training
+        dataset = cifar10.Cifar10DataSet(data_dir, subset, use_distortion)
+        image_batch, label_batch = dataset.make_batch(batch_size)
+        return image_batch, label_batch
 
 
 def main(flags):
-    classifier = tf.estimator.Estimator(
+    run_config = tf.ConfigProto(
+        device_count={"CPU": 2},
+        intra_op_parallelism_threads=1,
+        inter_op_parallelism_threads=3)
+    config = tf.estimator.RunConfig(
         model_dir=flags.job_dir,
+        session_config=run_config)
+
+    classifier = tf.estimator.Estimator(
         model_fn=get_model_fn(1),
+        config=config,
         params={
             'weight_decay': flags.weight_decay,
             'momentum': flags.momentum,
@@ -183,11 +198,13 @@ def main(flags):
             'train_batch_size': flags.train_batch_size,
             'learning_rate': flags.learning_rate
         })
-    classifier.train(input_fn=lambda: input_fn(
-        flags.data_dir, 'train', flags.train_batch_size), 
-        steps=flags.train_steps)
-    classifier.evaluate(input_fn=lambda: input_fn(
-        flags.data_dir, 'eval', flags.eval_batch_size))
+    for _ in range(50):
+        classifier.train(input_fn=lambda: input_fn(
+            flags.data_dir, 'train', flags.train_batch_size), 
+            steps=flags.train_steps)
+        classifier.evaluate(input_fn=lambda: input_fn(
+            flags.data_dir, 'eval', flags.eval_batch_size),
+            steps=100)
 
 
 if __name__ == '__main__':

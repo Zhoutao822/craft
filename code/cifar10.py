@@ -93,4 +93,3 @@ class Cifar10DataSet(object):
             return 10000
         else:
             raise ValueError('Invalid data subset "%s"' % subset)
-    

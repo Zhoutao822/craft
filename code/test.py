@@ -1,9 +1,11 @@
 #%%
 import tensorflow as tf
-import numpy as np
-from tensorflow import keras
+import cifar10
+sess = tf.Session()
 
+dataset = cifar10.Cifar10DataSet('./cifar10')
+data = dataset.make_batch(16)
+img, label = sess.run(data)
 
-(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
+print(img.shape, label)
 
-print(x_train.shape, type(x_train[0, 0, 0, 0]))

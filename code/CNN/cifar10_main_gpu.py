@@ -1,11 +1,11 @@
 # Copyright
 # License
 # ==============================================================================
-"""使用CPU进行训练的main文件
+"""使用GPU进行训练的main文件
 版本：
     TensorFlow：1.12
     Python：3.6.7
-定义运行时参数，仅使用CPU进行训练和验证
+定义运行时参数，仅使用GPU进行训练和验证
 """
 from __future__ import division
 from __future__ import print_function

@@ -47,9 +47,9 @@ tf.app.flags.DEFINE_float(
 tf.app.flags.DEFINE_float(
     'batch_norm_epsilon', 1e-5, 'Epsilon for batch norm.')   
 tf.app.flags.DEFINE_integer(
-    'num_inter_threads', 2, 'Number of threads to use for inter-op parallelism.')
+    'num_inter_threads', 6, 'Number of threads to use for inter-op parallelism.')
 tf.app.flags.DEFINE_integer(
-    'num_intra_threads', 2, 'Number of threads to use for intra-op parallelism.')
+    'num_intra_threads', 6, 'Number of threads to use for intra-op parallelism.')
 
 
 def get_model_fn():

@@ -1,24 +1,28 @@
 #%%
 import numpy as np
-import random
 from tensorflow import keras
 import tensorflow as tf
 import h5py
 import pandas as pd
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 x_train = []
 y_train = []
 x_test = []
-for filename in ['gap_InceptionV3.h5', 'gap_Xception.h5']:
+x_index = []
+for filename in ['gap_InceptionV3.h5', 'gap_ResNet50.h5', 'gap_MobileNetV2.h5']:
     with h5py.File(filename, 'r') as h:
         x_train.append(np.array(h['train']))
         x_test.append(np.array(h['test']))
         y_train = np.array(h['label'])
+        x_index = np.array(h['index'])
 
 x_train = np.concatenate(x_train, axis=1)
 x_test = np.concatenate(x_test, axis=1)
 y_train = np.array(y_train)
-print(x_train.shape, x_test.shape, y_train.shape)
+x_index = np.array(x_index)
+print(x_train.shape, x_test.shape, y_train.shape, x_index.shape)
 
 def unison_shuffled_copies(a, b):
     a = np.array(a)
@@ -39,7 +43,7 @@ model.compile(
     optimizer=tf.train.AdamOptimizer(),
     metrics=['acc']
 )
-
+#%%
 model.fit(
     x=x_train,
     y=y_train,
@@ -55,7 +59,7 @@ model.save('model.h5')
 result = model.predict(x_test)
 
 path = './submission.csv'
-counter = range(1, len(result) + 1)
+counter = x_index
 result = np.array(result, np.float)
 result = np.squeeze(result)
 
@@ -68,8 +72,8 @@ def limit(x):
         return x
 
 df = pd.DataFrame({'id': counter, 'label': result})
-# df['label'] = df['label'].map(limit)
-
+df['label'] = df['label'].map(limit)
+df = df.sort_values(by='id')
 file = df.to_csv(path_or_buf=None, index=None)
 with tf.gfile.Open(path, 'w') as f:
     f.write(file)

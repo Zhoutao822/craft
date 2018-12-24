@@ -223,4 +223,4 @@ if __name__ == '__main__':
         os.mkdir(FLAGS.data_dir)
     if not os.path.exists(FLAGS.job_dir):
         os.mkdir(FLAGS.job_dir)        
-    main(FLAGS)    
+    tf.app.run(main(FLAGS))  

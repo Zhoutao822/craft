@@ -1,1 +1,0 @@
-Craft for blog

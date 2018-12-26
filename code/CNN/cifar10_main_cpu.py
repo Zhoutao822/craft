@@ -13,10 +13,10 @@ from __future__ import absolute_import
 
 import os
 
+import tensorflow as tf
+
 import cifar10
 import cifar10_model
-import numpy as np
-import tensorflow as tf
 
 tf.logging.set_verbosity(tf.logging.INFO)
 FLAGS = tf.app.flags.FLAGS
@@ -31,21 +31,21 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer(
     'train_batch_size', 128, 'Train batch size.')
 tf.app.flags.DEFINE_integer(
-    'eval_batch_size', 100, 'Eval batch size.')    
+    'eval_batch_size', 100, 'Eval batch size.')
 tf.app.flags.DEFINE_integer(
-    'num_layers', 44, 'The number of layers of the model.') 
+    'num_layers', 44, 'The number of layers of the model.')
 tf.app.flags.DEFINE_float(
-    'learning_rate', 0.1, 'Learning rate value.') 
+    'learning_rate', 0.1, 'Learning rate value.')
 tf.app.flags.DEFINE_integer(
-    'decay_steps', 2000, 'The number of learning rate decay steps.')   
+    'decay_steps', 2000, 'The number of learning rate decay steps.')
 tf.app.flags.DEFINE_float(
-    'decay_rate', 0.96, 'Decay rate value.')   
+    'decay_rate', 0.96, 'Decay rate value.')
 tf.app.flags.DEFINE_boolean(
-    'use_distortion_for_training', True, 'If doing image distortion for training.') 
+    'use_distortion_for_training', True, 'If doing image distortion for training.')
 tf.app.flags.DEFINE_float(
-    'batch_norm_decay', 0.997, 'Decay for batch norm.')   
+    'batch_norm_decay', 0.997, 'Decay for batch norm.')
 tf.app.flags.DEFINE_float(
-    'batch_norm_epsilon', 1e-5, 'Epsilon for batch norm.')   
+    'batch_norm_epsilon', 1e-5, 'Epsilon for batch norm.')
 tf.app.flags.DEFINE_integer(
     'num_inter_threads', 6, 'Number of threads to use for inter-op parallelism.')
 tf.app.flags.DEFINE_integer(
@@ -59,7 +59,6 @@ def get_model_fn():
         """
         返回包含Resnet模型的EstimatorSpec，只有train和evaluate方法，
         没有predict方法，优化器使用Adam，learning rate会自动衰减
-        
         Args:
             features：一个batch的image数据
             labels：一个batch的label数据
@@ -79,7 +78,6 @@ def get_model_fn():
             params['batch_norm_epsilon'])
         # batch_norm需要更新
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        
         # 使用tf.train.exponential_decay实现学习率衰减
         learning_rate = tf.train.exponential_decay(
             learning_rate=learning_rate,
@@ -94,7 +92,6 @@ def get_model_fn():
         tensor_to_log = {'learning_rate': learning_rate, 'loss': avg_loss}
         logging_hook = tf.train.LoggingTensorHook(
             tensors=tensor_to_log, every_n_iter=100)
-        
         counter_hook = tf.train.StepCounterHook(every_n_steps=20)
 
         train_hooks = [logging_hook, counter_hook]
@@ -127,8 +124,8 @@ def get_model_fn():
     return _resnet_model_fn
 
 
-def _calc_fn(is_training, feature, label, 
-            num_layers, batch_norm_decay, batch_norm_epsilon):
+def _calc_fn(is_training, feature, label,
+             num_layers, batch_norm_decay, batch_norm_epsilon):
     """
     获取model，简单计算
     Args:
@@ -160,9 +157,9 @@ def _calc_fn(is_training, feature, label,
 
 
 def input_fn(data_dir,
-            subset,
-            batch_size,
-            use_distortion_for_training=True):
+             subset,
+             batch_size,
+             use_distortion_for_training=True):
     """
     输入函数，可以用于train数据集合eval数据集
     Args:
@@ -181,6 +178,7 @@ def input_fn(data_dir,
 
 
 def main(flags):
+    """主函数"""
     # 为了调用多线程运行，需要使用tf.ConfigProto，
     # device_count指定最多使用多少devices，比如CPU，最多仅支持1；
     # 如果有多个GPU，可以指定最多使用其中的多少个，键值对形式
@@ -210,11 +208,13 @@ def main(flags):
         })
     # 循环多次以观察eval的变化，防止过拟合
     for _ in range(50):
-        classifier.train(input_fn=lambda: input_fn(
-            flags.data_dir, 'train', flags.train_batch_size), 
+        classifier.train(
+            input_fn=lambda: input_fn(
+                flags.data_dir, 'train', flags.train_batch_size),
             steps=flags.train_steps)
-        classifier.evaluate(input_fn=lambda: input_fn(
-            flags.data_dir, 'eval', flags.eval_batch_size),
+        classifier.evaluate(
+            input_fn=lambda: input_fn(
+                flags.data_dir, 'eval', flags.eval_batch_size),
             steps=flags.eval_steps)
 
 
@@ -222,5 +222,5 @@ if __name__ == '__main__':
     if not os.path.exists(FLAGS.data_dir):
         os.mkdir(FLAGS.data_dir)
     if not os.path.exists(FLAGS.job_dir):
-        os.mkdir(FLAGS.job_dir)        
-    tf.app.run(main(FLAGS))  
+        os.mkdir(FLAGS.job_dir)
+    tf.app.run(main(FLAGS))

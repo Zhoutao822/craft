@@ -10,6 +10,8 @@
 #%%
 import pandas as pd
 from sklearn.datasets import load_wine
+from sklearn.model_selection import train_test_split
+pd.set_option('precision', 4)
 rawData = load_wine()
 
 data = rawData['data']
@@ -18,10 +20,15 @@ target = rawData['target']
 print(rawData['DESCR'])
 
 features = rawData['feature_names']
-# 使用Pandas便于计算和处理数据
-df = pd.DataFrame(data, columns=rawData['feature_names'])
 
-df['label'] = target
+X_train, X_test, y_train, y_test = train_test_split(data, target, test_size=0.2, random_state=2018)
+
+# 使用Pandas便于计算和处理数据
+df = pd.DataFrame(X_train, columns=rawData['feature_names'])
+testData = pd.DataFrame(X_test, columns=rawData['feature_names'])
+
+df['label'] = y_train
+testData['label'] = y_test
 
 df.describe()
 
@@ -167,7 +174,7 @@ def createTree(dataFrame, features, label, min_samples_split=3):
     # print(myTree)
     return myTree
 
-tree = createTree(df, features, 'label', min_samples_split=3)
+tree = createTree(df, features, 'label', min_samples_split=2)
 print(tree)
 
 #%%
@@ -194,11 +201,6 @@ def classify(inputTree, testData):
     else:
         label = subTree
     return label
-score = 0.0
-for i in range(178):
-    result = classify(tree, df.loc[i]) == int(df.loc[i]['label'])
-    score += int(result) / 178
-print(score)
 
 #%%
 import pickle
@@ -250,4 +252,6 @@ def postPruningTree(inputTree, dataFrame, testData, label):
         return inputTree
     return majority
 
-postPruningTree(tree, df, df[:80], 'label')
+mytree = postPruningTree(tree, df, testData, 'label')
+
+testAccuracy(mytree, testData, 'label')

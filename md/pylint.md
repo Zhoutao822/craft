@@ -1,5 +1,5 @@
 pylint: disable=redefined-builtin
-
+pylint: disable=invalid-name
 模块级常量. 例如:　PI = 3.14159. 常量应该全大写, 用下划线连接.
 
 大部分.py文件不必以#!作为文件的开始. 根据 PEP-394 , 程序的main文件应该以 #!/usr/bin/python2或者 #!/usr/bin/python3开始.

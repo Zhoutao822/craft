@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+        <title>华为云数据湖工厂服务DLF-房租信息提醒系统</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.10.0/dist/katex.min.css" integrity="sha384-9eLZqc9ds8eNjO3TmqPeYcDj8n+Qfa4nuSiGYa6DjLNcv9BtN69ZIulL9+8CqC9Y" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+        <link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <style>
+.task-list-item { list-style-type: none; } .task-list-item-checkbox { margin-left: -20px; vertical-align: middle; }
+</style>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        
+        <script src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+    </head>
+    <body>
+        <h1 id="%E5%8D%8E%E4%B8%BA%E4%BA%91%E6%95%B0%E6%8D%AE%E6%B9%96%E5%B7%A5%E5%8E%82%E6%9C%8D%E5%8A%A1dlf-%E6%88%BF%E7%A7%9F%E4%BF%A1%E6%81%AF%E6%8F%90%E9%86%92%E7%B3%BB%E7%BB%9F">华为云数据湖工厂服务DLF-房租信息提醒系统</h1>
+<p><strong>Author: zhuantou233</strong></p>
+<p>参考：</p>
+<blockquote>
+<p><a href="https://support.huaweicloud.com/bestpractice-dlf/dlf_08_0020.html">数据湖工厂DLF-搭建实时报警平台</a></p>
+</blockquote>
+<h2 id="1-dlf%E6%9C%8D%E5%8A%A1%E8%AF%B4%E6%98%8E">1. DLF服务说明</h2>
+<p>参考官网：<a href="https://support.huaweicloud.com/productdesc-dlf/dlf_07_001.html">https://support.huaweicloud.com/productdesc-dlf/dlf_07_001.html</a> ，数据湖工厂服务（Data Lake Factory，简称DLF）是华为云大数据重要的平台产品，它可管理多种大数据服务，提供一站式的大数据开发环境、全托管的大数据调度能力，极大降低用户使用大数据的门槛，帮助用户快速构建大数据处理中心。</p>
+<p>使用DLF，用户可进行数据建模、数据集成、脚本开发、工作流编排、运维监控等操作，轻松完成整个数据的处理分析流程。</p>
+<p>简而言之就是，这个是一个集合，也是一个调度中心，你在华为云上使用的大多数服务都可以通过DLF串联起来从而实现一个自动化流水线形式的功能，下面以我的实验来解释DLF的工作流程以及我的个人看法与认知。</p>
+<h2 id="2-%E4%BB%BB%E5%8A%A1%E5%88%B6%E5%AE%9A%E5%8F%8A%E5%88%86%E6%9E%90">2. 任务制定及分析</h2>
+<p>小明同学作为一个北漂技术宅在租房问题上遇到了点问题，他想在北京租到合适而且价格便宜的房子，但是市面上有大大小小各种租房网站，一个一个翻再对比显得有点麻烦，于是乎他想到了可以用华为云的各种服务搞一个自动化系统，从不同的网站获取数据，然后进行筛选过滤，最后将相对合适的一些房源数据展示出来。恩，小明一拍脑瓜子就觉得这个可以搞，然后开始了他的脱发之旅。</p>
+<p>整体方案设计类似<a href="https://support.huaweicloud.com/bestpractice-dlf/dlf_08_0020.html">数据湖工厂DLF-搭建实时报警平台</a>，区别在于数据中心的数据来源，CS清洗数据的条件，DLI统计筛选的条件以及最终存储的位置DWS。</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/0.png" alt=""></p>
+<p>操作流程：</p>
+<ol>
+<li>实时数据导入：通过数据接入服务DIS将部署在服务器上的爬虫服务爬取到的数据实时导入到实时流计算服务CS。</li>
+<li>数据清洗和预处理：CS对房租数据进行数据清洗和预处理。</li>
+<li>发送告警消息：当达到警告条件时向用户发送短信或邮件。</li>
+<li>数据导出和存储：清洗过的数据进入DIS通道，DIS根据导入时间将初步筛选出的数据按日期存放到OBS。</li>
+<li>输出最终筛选统计报表：通过DLI SQL脚本建立外部分区数据表，以及按照数据获取时间进行统计。</li>
+<li>迁移数据：最终筛选统计表计算完成后，将数据通过云数据迁移服务CDM统一导出到DWS数据库。</li>
+</ol>
+<h2 id="3-%E5%AE%9E%E9%AA%8C%E7%8E%AF%E5%A2%83">3. 实验环境</h2>
+<ul>
+<li>已开通对象存储服务OBS，并创建桶，例如“s3a://obs-zhuantou233/dlf/rent_output_info/”、“s3a://obs-zhuantou233/dlf/rent_data/”，分别用于存放原始数据表和最终筛选统计表。</li>
+<li>已开通云数据迁移服务CDM，并创建集群“cdm-zhuantou233”，用于创建CDM作业。</li>
+<li>已开通数据湖探索服务DLI。</li>
+<li>已开通消息通知服务SMN。</li>
+<li>已开通实时数据流计算服务CS。</li>
+<li>已开通数据湖工厂服务DLF。</li>
+<li>已开通数据仓库服务DWS，并创建集群“dws_zhuantou233”，用于接收CDM传入的数据。</li>
+</ul>
+<h2 id="4-%E6%95%B0%E6%8D%AE%E6%BA%90">4. 数据源</h2>
+<p>小明同学的第一个问题是数据从哪来呢，显然，网上这么多的网站，爬就完事了。那么以链家和安居客为例，我们开始用爬虫技术获取房屋租赁信息并保存为log文件，我这里就直接使用Scrapy框架进行爬虫，没有代理IP池没有复杂的请求头，就简单的取数据，延迟设置长一点一般不会被封，还有就是爬虫得到的数据不允许商用，否则律师函警告。</p>
+<p>首先看看网站啥样</p>
+<p>这是链家租房信息</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/lianjia.png" alt=""></p>
+<p>这是安居客租房信息</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/anjuke.png" alt=""></p>
+<p>关键数据为：</p>
+<ul>
+<li>dataFrom：数据来源</li>
+<li>price：房租价格</li>
+<li>area：面积</li>
+<li>loc：位置</li>
+<li>zone：房型</li>
+<li>time：发布时间</li>
+<li>direction：朝向</li>
+<li>title：名称及描述</li>
+<li>tag：标签</li>
+</ul>
+<p>然后就是创建Scrapy项目以及代码完成了，结果如下：</p>
+<p>Scrapy项目结构如下，有一部分是运行过程中测试的结果和生成的临时文件，只需要看我说明的文件即可</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/18.png" alt=""></p>
+<blockquote>
+<p><a href="http://item.py">item.py</a></p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/item.png" alt=""></p>
+<blockquote>
+<p>anjuke_spider.py（这里修正了之前对tag的处理）</p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/spider1.png" alt=""></p>
+<blockquote>
+<p>lianjia_spider.py（这里修正了之前对tag的处理）</p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/spider2.png" alt=""></p>
+<blockquote>
+<p><a href="http://settings.py">settings.py</a></p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/settings.png" alt=""></p>
+<blockquote>
+<p><a href="http://piplines.py">piplines.py</a>，两个spider公用一套配置，在piplines中使用spider.name保存不同spider生成的log文件，所有log都保存在<code>/root/huawei/data/</code>下</p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/piplines.png" alt=""></p>
+<blockquote>
+<p>scrapy.cfg，配置scrapyd远程部署</p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/cfg.png" alt=""></p>
+<p>最后结果保存在<code>anjuke_spider.log</code>和<code>lianjia_spider.log</code>文件中，文件内容大概类似</p>
+<pre><code class="language-text"><div>anjuke,1940,20,丰台-方庄 群星路,2室1厅,无数据,朝东,正规三居 无取暖费 8min到地铁 芳星园三区,合租-14号线(东)
+anjuke,1130,14,朝阳-南沙滩 科学院南里中街,3室1厅,无数据,朝南,水电均摊 精装卧室 集体供暖 科学园南里六区,合租-8/15号线
+lianjia,6000,57,朝阳-双井,1室1厅1卫,1个月前发布,东南,南向采光好无遮挡 有钥匙随时看 150米到达双井地铁,近地铁-集中供暖-随时看房
+lianjia,4700,50,东城-永定门,2室1厅1卫,1个月前发布,南,整租 · 14号线景泰郭庄北里双朝南两居室,近地铁-集中供暖-随时看房
+</div></code></pre>
+<p>配置<code>scrapy.cfg</code>是为了可以部署在服务器上完成爬虫任务，具体需要在服务器上安装scrapyd、配置参数等就不多说了，最终部署成功截图为</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/5.png" alt=""></p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/6.png" alt=""></p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/9.png" alt=""></p>
+<p>这样我们就成功启动两个爬虫同时运行，但是这样仅仅只是爬取一次数据，我需要每天都爬取数据，那么我把这个Scrapy项目复制到服务器上，然后通过另一个python脚本定时启动，脚本如下，每天删除昨天的log文件，然后开启scrapy的spider脚本，再停止1天的时间，这是最简单的方式，虽然有点问题</p>
+<pre><code class="language-python"><div><span class="hljs-keyword">import</span> os
+<span class="hljs-keyword">import</span> time
+
+<span class="hljs-keyword">while</span> <span class="hljs-keyword">True</span>:
+    os.system(<span class="hljs-string">'rm /root/huawei/data/*.log'</span>)
+    os.system(<span class="hljs-string">'scrapy crawl anjuke_spider'</span>)
+    os.system(<span class="hljs-string">'scrapy crawl lianjia_spider'</span>)
+    time.sleep(<span class="hljs-number">24</span>*<span class="hljs-number">60</span>*<span class="hljs-number">60</span>)
+</div></code></pre>
+<h2 id="5-%E8%B0%83%E7%94%A8%E5%8D%8E%E4%B8%BA%E4%BA%91%E6%9C%8D%E5%8A%A1">5. 调用华为云服务</h2>
+<p>根据上文我们已经得到了一个每天持续写入数据的数据源，接下来需要上传数据、分析数据、保存数据。</p>
+<h3 id="51-dis%E4%B8%8Ecs">5.1 DIS与CS</h3>
+<p>DIS服务可以监控数据文件的变化并将数据上传，CS服务接收到DIS传来的数据，先进行数据清洗，再转存到OBS上为下一步数据处理做铺垫。</p>
+<p>首先在服务器上安装并启动DIS Agent（安装过程必须参考华为云文档，Linux与Windows很不同），具体配置文件如下，这里的输入流为csinput与后面的DIS通道配置呼应</p>
+<pre><code class="language-yml"><div><span class="hljs-meta">---</span>
+<span class="hljs-comment"># cloud region id</span>
+<span class="hljs-attr">region:</span> <span class="hljs-string">cn-north-1</span>
+<span class="hljs-comment"># user ak (get from 'My Credential')</span>
+<span class="hljs-attr">ak:</span> <span class="hljs-string">AIKR0GBW3RIOISDEE1PG</span>
+<span class="hljs-comment"># user sk (get from 'My Credential')</span>
+<span class="hljs-attr">sk:</span> <span class="hljs-number">7</span><span class="hljs-string">Z04p6UTCYObtRjV7wAPtRomnbms0EqYPeHYfUpc</span>
+<span class="hljs-comment"># user project id (get from 'My Credential')</span>
+<span class="hljs-attr">projectId:</span> <span class="hljs-number">5</span><span class="hljs-string">d72f4f9035c4b6e937aa5efa483e83f</span>
+<span class="hljs-comment"># the dis gw endpoint</span>
+<span class="hljs-attr">endpoint:</span> <span class="hljs-attr">https://dis.cn-north-1.myhuaweicloud.com:20004</span>
+<span class="hljs-comment"># config each flow to monitor file.</span>
+<span class="hljs-attr">flows:</span>
+  <span class="hljs-comment"># DIS stream</span>
+<span class="hljs-attr">  - DISStream:</span> <span class="hljs-string">csinput</span>
+    <span class="hljs-comment"># only support specified directory, filename can use * to match some files. eg. * means match all file, test*.log means match test1.log or test-12.log and so on.</span>
+<span class="hljs-attr">    filePattern:</span> <span class="hljs-string">/root/huawei/data/*.log</span>
+    <span class="hljs-comment"># from where to start: 'START_OF_FILE' or 'END_OF_FILE'</span>
+<span class="hljs-attr">    initialPosition:</span> <span class="hljs-string">START_OF_FILE</span>
+    <span class="hljs-comment"># upload max interval(ms)</span>
+<span class="hljs-attr">    maxBufferAgeMillis:</span> <span class="hljs-number">5000</span>
+</div></code></pre>
+<p>然后就是启动DIS Agent，这里也是一样，Linux只能用<code>bash start-dis-agent.sh</code>，非常关键。</p>
+<p>接下来是开通DIS通道</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/19.png" alt=""></p>
+<p>其中csoutput通道需要增加转储任务，就是将CS清洗后的数据转存到OBS中，对应上文我建立的桶及文件夹，且目录格式按照时间<code>yyyy/MM/dd</code>，这里对后面DLI任务有影响</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/1.png" alt=""></p>
+<p>配置转储任务需要IAM委托，设置如下</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/2.png" alt=""></p>
+<p>然后配置SMN主题以及订阅</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/3.png" alt=""></p>
+<p>最后开启CS作业，CS的功能包括：</p>
+<ul>
+<li>csinput：接收来自DIS Agent的数据</li>
+<li>csoutput：将处理后的数据通过DIS通道再存到OBS中</li>
+<li>message：SMN服务，用于判断从csinput接收到的数据是否满足提醒条件，以向用户发送消息</li>
+</ul>
+<pre><code class="language-sql"><div><span class="hljs-comment">/**
+  * &gt;&gt;&gt;&gt;&gt;样例输入&lt;&lt;&lt;&lt;&lt;
+  *  流名: rent_data(DataFrom,Price,Area,Loc,Zone,ReleaseTime,Direction,Title,Tag):
+  *  链家,7500,58,朝阳-双井,1室1厅1卫,一个月前发,西,整租·金港,进地铁/集中供暖/随时看房
+  * &gt;&gt;&gt;&gt;&gt;样例输出&lt;&lt;&lt;&lt;&lt;
+  *  流名: rent_output_info(DataFrom,Price,Area,Loc,Zone,Direction,Title,Tag):
+  *  链家,7500,58,朝阳-双井,1室1厅1卫,西,整租·金港,进地铁/集中供暖/随时看房
+  *  流名: rent_msg(MessageContent)
+  *  {链家}信息,有最低房价{7500}元,面积在{58}平方米以上，请注意查看！
+  **/</span>
+  
+<span class="hljs-comment">/** 创建输入流，从DIS的csinput通道获取数据。
+  *
+  * 根据实际情况修改以下选项：
+  * channel：数据所在通道名
+  * partition_count：该通道分区数
+  * encode: 数据编码方式，可以是csv或json
+  * field_delimiter：当编码格式为csv时，属性之间的分隔符
+  **/</span>
+<span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">SOURCE</span> STREAM rent_data (
+  DataFrom <span class="hljs-keyword">STRING</span>,
+  Price <span class="hljs-keyword">LONG</span>,
+  Area <span class="hljs-built_in">INT</span>,
+  Loc <span class="hljs-keyword">STRING</span>,
+  Zone <span class="hljs-keyword">STRING</span>,
+  ReleaseTime <span class="hljs-keyword">STRING</span>,
+  Direction <span class="hljs-keyword">STRING</span>,
+  Title <span class="hljs-keyword">STRING</span>,
+  Tag <span class="hljs-keyword">STRING</span>
+)
+<span class="hljs-keyword">WITH</span> (
+  <span class="hljs-keyword">type</span> = <span class="hljs-string">"dis"</span>,
+  region = <span class="hljs-string">"cn-north-1"</span>,
+  channel = <span class="hljs-string">"csinput"</span>,
+  partition_count = <span class="hljs-string">"1"</span>,
+  <span class="hljs-keyword">encode</span> = <span class="hljs-string">"csv"</span>,
+  field_delimiter = <span class="hljs-string">","</span>
+) <span class="hljs-built_in">TIMESTAMP</span> <span class="hljs-keyword">BY</span> proctime.proctime;
+
+<span class="hljs-comment">/** 创建输出流，结果输出到DIS的csoutput通道。
+  *
+  * 根据实际情况修改以下选项：
+  * channel：数据所在通道名
+  * partition_key：当通道有多个分区时用来分发的主键
+  * encode： 结果编码方式，可以为csv或者json
+  * field_delimiter: 当编码格式为csv时，属性之间的分隔符
+  **/</span>
+<span class="hljs-keyword">CREATE</span> SINK STREAM rent_output_info (
+  DataFrom <span class="hljs-keyword">STRING</span>,
+  Price <span class="hljs-keyword">LONG</span>,
+  Area <span class="hljs-built_in">INT</span>,
+  Loc <span class="hljs-keyword">STRING</span>,
+  Zone <span class="hljs-keyword">STRING</span>,
+  Direction <span class="hljs-keyword">STRING</span>,
+  Title <span class="hljs-keyword">STRING</span>,
+  Tag <span class="hljs-keyword">STRING</span>
+)
+<span class="hljs-keyword">WITH</span> (
+  <span class="hljs-keyword">type</span> = <span class="hljs-string">"dis"</span>,
+  region = <span class="hljs-string">"cn-north-1"</span>,
+  channel = <span class="hljs-string">"csoutput"</span>,
+  partition_key = <span class="hljs-string">"DataFrom"</span>,
+  <span class="hljs-keyword">encode</span> = <span class="hljs-string">"csv"</span>,
+  field_delimiter = <span class="hljs-string">","</span>
+);
+
+<span class="hljs-comment">/** 将部分字段输出 **/</span>
+<span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> rent_output_info
+<span class="hljs-keyword">SELECT</span> DataFrom,Price,Area,Loc,Zone,Direction,Title,Tag
+<span class="hljs-keyword">FROM</span> rent_data
+<span class="hljs-keyword">WHERE</span> Price &gt; <span class="hljs-number">0</span>;
+
+<span class="hljs-comment">/** 创建输出流，结果输出到SMN。
+  *
+  * 根据实际情况修改以下选项：
+  * topic_urn：SMN服务的主题URN，作为消息通知的目标主题，需要提前在SMN服务中创建
+  * message_subject：发往SMN服务的消息标题
+  * message_column：输出流的列名，其内容作为消息的内容
+  **/</span>
+<span class="hljs-keyword">CREATE</span> SINK STREAM rent_msg (
+  MessageContent <span class="hljs-keyword">STRING</span>
+)
+<span class="hljs-keyword">WITH</span> (
+  <span class="hljs-keyword">type</span> = <span class="hljs-string">"smn"</span>,
+  region = <span class="hljs-string">"cn-north-1"</span>,
+  topic_urn = <span class="hljs-string">"urn:smn:cn-north-1:5d72f4f9035c4b6e937aa5efa483e83f:message"</span>,
+  message_subject = <span class="hljs-string">"message"</span>,
+  message_column = <span class="hljs-string">"MessageContent"</span>
+);
+
+<span class="hljs-comment">/** 当1天之内的最低房价在3000以下且面积在15以上的租房信息超过5条，发送提醒消息到SMN服务，实现用户手机终端实时提醒功能 **/</span>
+<span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> rent_msg
+<span class="hljs-keyword">SELECT</span> DataFrom || <span class="hljs-string">"信息，有最低房价"</span> || <span class="hljs-keyword">CAST</span>(Price <span class="hljs-keyword">as</span> <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">20</span>)) || <span class="hljs-string">"元，面积在"</span> || <span class="hljs-keyword">CAST</span>(Area <span class="hljs-keyword">as</span> <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">20</span>)) || <span class="hljs-string">"平方米以上，请注意查看！"</span>
+<span class="hljs-keyword">FROM</span> (
+  <span class="hljs-keyword">SELECT</span> DataFrom, <span class="hljs-keyword">Min</span>(Price) <span class="hljs-keyword">as</span> Price, <span class="hljs-keyword">MIN</span>(Area) <span class="hljs-keyword">as</span> Area, <span class="hljs-keyword">COUNT</span>(Price) <span class="hljs-keyword">as</span> low_price_count
+  <span class="hljs-keyword">FROM</span> rent_data
+  <span class="hljs-keyword">WHERE</span> Price &lt; <span class="hljs-number">3000</span> <span class="hljs-keyword">AND</span> Area &gt; <span class="hljs-number">15</span>
+  <span class="hljs-keyword">GROUP</span> <span class="hljs-keyword">BY</span> TUMBLE (proctime, <span class="hljs-built_in">INTERVAL</span> <span class="hljs-string">'1'</span> <span class="hljs-keyword">DAY</span>), DataFrom
+)
+<span class="hljs-keyword">WHERE</span> low_price_count &gt; <span class="hljs-number">5</span>;
+</div></code></pre>
+<p>若之前的步骤正确且服务正常，则我们能在OBS上看到转存的文件，注意这是csv文件（虽然后缀没有csv）</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/8.png" alt=""></p>
+<p>以及CS数据流监控的变化</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/7.png" alt=""></p>
+<h3 id="52-dli%E4%B8%8Edws">5.2 DLI与DWS</h3>
+<p>现在我们已经得到了按照时间文件夹排序的csv文件，那么我们需要建数据库和数据表保存csv中的数据，再进行数据筛选。</p>
+<blockquote>
+<p>第一步，在DLI服务中建数据连接、数据库和数据队列</p>
+</blockquote>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/15.png" alt=""></p>
+<blockquote>
+<p>第二步，在DLF中建立DLI SQL脚本</p>
+</blockquote>
+<p>脚本1-create_table，只需要执行一次，目的是建立从OBS到DLI的数据表rent_output_info，以及保存DLI筛选后的数据表rent_data，这里虽然路径path下面没有数据，但是后面后修正（注意这里增加了一个字段InfoTime用于保存数据获取的时间）</p>
+<pre><code class="language-sql"><div><span class="hljs-keyword">create</span> <span class="hljs-keyword">table</span>
+  rent_output_info(
+    DataFrom <span class="hljs-keyword">string</span>,
+    Price <span class="hljs-keyword">long</span>,
+    Area <span class="hljs-built_in">int</span>,
+    Loc <span class="hljs-keyword">string</span>,
+    Zone <span class="hljs-keyword">string</span>,
+    Direction <span class="hljs-keyword">string</span>,
+    Title <span class="hljs-keyword">string</span>,
+    Tag <span class="hljs-keyword">string</span>,
+    InfoTime <span class="hljs-keyword">string</span>
+  ) <span class="hljs-keyword">using</span> csv options(
+    <span class="hljs-keyword">path</span> <span class="hljs-string">'s3a://obs-zhuantou233/dlf/rent_output_info'</span>
+  ) partitioned <span class="hljs-keyword">by</span>(InfoTime);
+  
+<span class="hljs-keyword">create</span> <span class="hljs-keyword">table</span>
+  rent_data(
+    DataFrom <span class="hljs-keyword">string</span>,
+    Price <span class="hljs-keyword">long</span>,
+    Area <span class="hljs-built_in">int</span>,
+    Loc <span class="hljs-keyword">string</span>,
+    Zone <span class="hljs-keyword">string</span>,
+    Direction <span class="hljs-keyword">string</span>,
+    Title <span class="hljs-keyword">string</span>,
+    Tag <span class="hljs-keyword">string</span>,
+    InfoTime <span class="hljs-keyword">string</span>
+  ) <span class="hljs-keyword">using</span> csv options(
+    <span class="hljs-keyword">path</span> <span class="hljs-string">'s3a://obs-zhuantou233/dlf/rent_data'</span>);
+</div></code></pre>
+<p>脚本2-insert2rent，这个是后面的DLF中的DLI SQL节点，主要是从OBS上按照时间路径导入数据并且完成筛选功能，这个脚本需要保存而且会多次运行（取决于DLF任务调度）</p>
+<pre><code class="language-sql"><div><span class="hljs-keyword">ALTER</span> <span class="hljs-keyword">TABLE</span>
+  rent_output_info
+<span class="hljs-keyword">ADD</span>
+  <span class="hljs-keyword">PARTITION</span> (InfoTime = ${yesterday}) LOCATION <span class="hljs-string">'s3a://obs-zhuantou233/dlf/rent_output_info/${file_yesterday}'</span>;
+  
+<span class="hljs-keyword">INSERT</span> <span class="hljs-keyword">INTO</span> rent_data
+<span class="hljs-keyword">SELECT</span>
+  *
+<span class="hljs-keyword">FROM</span>
+  (
+    <span class="hljs-keyword">SELECT</span>
+      *
+    <span class="hljs-keyword">FROM</span>
+      rent_output_info
+    <span class="hljs-keyword">WHERE</span>
+      Price &lt; <span class="hljs-number">7000</span>
+      <span class="hljs-keyword">AND</span> Area &gt; <span class="hljs-number">40</span>
+      <span class="hljs-keyword">AND</span> Loc <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%朝阳%"</span>
+      <span class="hljs-keyword">AND</span> (Title <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%整租%"</span> <span class="hljs-keyword">OR</span> Tag <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%整租%"</span>)
+    <span class="hljs-keyword">UNION</span>
+    <span class="hljs-keyword">SELECT</span>
+      *
+    <span class="hljs-keyword">FROM</span>
+      rent_output_info
+    <span class="hljs-keyword">WHERE</span>
+      Price &lt; <span class="hljs-number">2500</span>
+      <span class="hljs-keyword">AND</span> Area &gt; <span class="hljs-number">10</span>
+      <span class="hljs-keyword">AND</span> Loc <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%海淀%"</span>
+      <span class="hljs-keyword">AND</span> (Tag <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%近地铁%"</span> <span class="hljs-keyword">OR</span> Tag <span class="hljs-keyword">LIKE</span> <span class="hljs-string">"%合租%"</span>)
+  )
+<span class="hljs-keyword">ORDER</span> <span class="hljs-keyword">BY</span>
+  Price
+</div></code></pre>
+<p>筛选条件很简单：</p>
+<ul>
+<li>Price7000以下且面积40以上，朝阳区，整租的房子</li>
+<li>以及Price2500以下面积10以上，海淀区靠近地铁的合租房</li>
+</ul>
+<p>需要注意的地方是，SQL运行时参数<code>${参数名}</code>，在SQL作业中很难使用，在DLF作业节点里很好配置，分别是file_yesterday<code>#{DateUtil.format(Job.planTime,&quot;yyyy/MM/dd&quot;)}</code>以及yesterday<code>#{#{DateUtil.format(Job.planTime,&quot;yyyyMMdd&quot;)}}</code></p>
+<p>两个参数都是获取今天的日期（虽然是yesterday），在DLF节点中配置如下</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/16.png" alt=""></p>
+<blockquote>
+<p>第三步，DWS集群dws_zhuantou233建立，没有什么特别的，需要记得加上公网ip，以及创建schema和表rent_data_result，这里是在DataStudio等数据库远程连接软件中完成的</p>
+</blockquote>
+<pre><code class="language-sql"><div><span class="hljs-keyword">create</span> <span class="hljs-keyword">schema</span> rent_data_schema;
+<span class="hljs-keyword">set</span> current_schema= rent_data_schema;
+<span class="hljs-keyword">drop</span> <span class="hljs-keyword">table</span> <span class="hljs-keyword">if</span> <span class="hljs-keyword">exists</span> rent_data_result;
+<span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> rent_data_result
+(
+  DataFrom <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">64</span>),
+  Price <span class="hljs-built_in">BIGINT</span>,
+  Area <span class="hljs-built_in">INT</span>,
+  Loc <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">64</span>),
+  Zone <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">64</span>),
+  Direction <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">64</span>),
+  Title <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">128</span>),
+  Tag <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">128</span>),
+  InfoTime <span class="hljs-built_in">VARCHAR</span>(<span class="hljs-number">64</span>)
+)
+<span class="hljs-keyword">with</span> (orientation = <span class="hljs-keyword">column</span>, COMPRESSION=MIDDLE)
+<span class="hljs-keyword">distribute</span> <span class="hljs-keyword">by</span> <span class="hljs-keyword">replication</span>;
+</div></code></pre>
+<h3 id="53-dlf%E4%B8%8Ecdm">5.3 DLF与CDM</h3>
+<p>在完成DLF作业调度前，需要配置CDM连接，OBS link和DWS link</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/20.png" alt=""></p>
+<p>创建CDM迁移作业</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/21.png" alt=""></p>
+<p>最后回到DLF作业中，我们加上之前配置的DLI节点和现在这个CDM节点</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/10.png" alt=""></p>
+<p>CDM节点配置</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/17.png" alt=""></p>
+<p>作业调度配置，比如每天12点整开始数据筛选及迁移</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/4.png" alt=""></p>
+<p>最后启动作业，若作业成功调度且在调度时刻成功运行，我们将会看到</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/14.png" alt=""></p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/13.png" alt=""></p>
+<p>最后到了检验我们的结果的时刻了，在DataStudio上刷新我们的数据库，查看表rent_data_result的数据</p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/11.png" alt=""></p>
+<p><img src="file:///e%3A/pythonprojects/craft/md/huawei/dlf%E4%BF%AE%E6%AD%A3%E7%89%88/12.png" alt=""></p>
+<p>按照价格排序，带有数据源、数据详细信息、数据时间的最终结果就得到了，而且这是一个每天定时更新的表。</p>
+<h2 id="6-%E6%80%BB%E7%BB%93%E4%B8%8E%E6%80%9D%E8%80%83">6. 总结与思考</h2>
+<p>首先是DLF服务的理解，这个很明显是为了连接其他所有服务的流水线，把其他模块作业一部分功能，叠加起来形成一个稳定的自动化系统，可以说是整个华为云系统的关键组件，如果能灵活的使用应该能成为中小企业的一个业务分支（自动化部分）。</p>
+<p>其次是实验过程中的坑：</p>
+<ul>
+<li>从csoutput中转存到OBS上的数据，这是按照时间目录形成的，在DLI中运行时参数，比如<code>${yesterday}</code>这种，给的示例应该是过时了的，DLI语句对参数支持不是很友好，只有在DLF中节点配置才能完整的实现参数传入；</li>
+<li>爬虫数据的处理，由于两个数据源给出的信息不完全匹配，所以我将一部分数据按我自己的意图划分，最终筛选时只能靠模糊匹配完成，仅有价格面积等信息是完全准确的；</li>
+<li>以及其他我遇到的但是被解决了却已经忘记的所有坑。</li>
+</ul>
+<p>最后是整个项目流程的思考，我仅仅只爬了链家和安居客的数据，后续可以加上其他平台的数据形成一个大数据集，这是其一；其二是，定时任务的处理方式不是很优雅；最后是如果有后台处理，那么可以做一个实时更新的系统应用。</p>
+
+    </body>
+    </html>

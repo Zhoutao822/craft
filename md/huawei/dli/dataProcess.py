@@ -5,10 +5,6 @@ import pandas as pd
 df = pd.read_csv('./train.csv')
 
 df.head(10)
-#%%
-columns = df.columns.values.tolist()
-
-print(columns)
 
 #%%
 na_series = df.isnull().sum()
@@ -25,6 +21,6 @@ print(df_without_na.isnull().sum())
 
 #%%
 df_without_na.describe()
-
+#%%
 df_without_na.to_csv('./result.csv', index=False)
 

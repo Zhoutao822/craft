@@ -1,15 +1,18 @@
-import java.util.concurrent.ConcurrentHashMap;
 
-class Main{
+public class Main {
     public static void main(String[] args) {
-        // AtomicInteger i = new AtomicInteger(0);
-        // i.getAndIncrement();
-        // System.out.print(i);
-        // int a = 1;
-        // int b = 1;
-        Integer a = new Integer(1);
-        Integer b = new Integer(1);
-        System.out.print(a == b);
-        ConcurrentHashMap map = new ConcurrentHashMap();
+        split(12);
+    }
+
+    public static int split(int number) {
+        if (number > 1) {
+            if (number % 2 != 0) {
+                int n1 = split((number + 1) / 2);
+                System.out.print(n1);
+            }
+            int n2 = split(number / 2);
+            System.out.print(n2);
+        }
+        return number;
     }
 }

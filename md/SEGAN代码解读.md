@@ -135,11 +135,12 @@ def downconv(x,
              bias_init=None,
              name='downconv'):
     """ Downsampled convolution 1d """
-    x2d = tf.expand_dims(x, 2)
-    w_init = init
+    x2d = tf.expand_dims(x, 2) # 给x增加一个维度，根据上下文可知x2d有4个维度
+    w_init = init # 初始化函数
     if w_init is None:
         w_init = xavier_initializer(uniform=uniform)
     with tf.variable_scope(name):
+        # W为卷积核参数，他的形状是[卷积核的高度，卷积核的宽度，图像通道数，卷积核个数]，要求类型与参数input相同，有一个地方需要注意，第三维in_channels，就是参数input的第四维
         W = tf.get_variable(
             'W', [kwidth, 1, x.get_shape()[-1], output_dim],
             initializer=w_init)

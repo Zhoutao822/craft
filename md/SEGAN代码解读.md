@@ -110,7 +110,7 @@ def audio_summary(name, x, sampling_rate=16e3):
 
 
 def minmax_normalize(x, x_min, x_max, o_min=-1., o_max=1.):
-    """minmax归一化
+    """minmax归一化，约束到[-1.0, 1.0]
     
     Args:
         x ([type]): [description]
@@ -123,6 +123,15 @@ def minmax_normalize(x, x_min, x_max, o_min=-1., o_max=1.):
 
 
 def minmax_denormalize(x, x_min, x_max, o_min=-1., o_max=1.):
+    """反归一化，还原数据
+    
+    Args:
+        x ([type]): [description]
+        x_min ([type]): [description]
+        x_max ([type]): [description]
+        o_min ([type], optional): [description]. Defaults to -1..
+        o_max ([type], optional): [description]. Defaults to 1..
+    """
     return minmax_normalize(x, o_min, o_max, x_min, x_max)
 
 

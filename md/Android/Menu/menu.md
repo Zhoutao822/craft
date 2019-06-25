@@ -925,7 +925,7 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
         }
 
         // Calculate the number of pointers to deliver.
-        // 这里出现了一个新的概念pointers，这是由于许多设备支持多点触控，那么同一时间可以传递多个事件，我们把这些事件成为pointers
+        // 这里出现了一个新的概念pointers，这是由于许多设备支持多点触控，那么同一时间可以传递多个事件，我们把这些事件称为pointers
         final int oldPointerIdBits = event.getPointerIdBits();
         final int newPointerIdBits = oldPointerIdBits & desiredPointerIdBits;
 
@@ -1243,10 +1243,225 @@ public class MainActivity extends AppCompatActivity implements PopupMenu.OnMenuI
 
 从activity -> PhoneWindow/DecorView -> ViewGroup(如果布局中有的话) -> View
 
-dispatchTouchEvent是一种层层递归式的调用，只有在递归到View中被执行时才会返回，一般来说返回true代表事件被消耗了，而事件的处理在OnTouchEvent中；ViewGroup中有onInterceptTouchEvent方法可以中断事件的传递，重写此方法让它返回true，那么事件不会传递到子view中，onInterceptTouchEvent默认返回false。
+* dispatchTouchEvent是一种层层递归式的调用，只有在递归到View中被执行时才会返回，一般来说返回true代表事件被消耗了，而事件的处理在OnTouchEvent中；
+* ViewGroup中有onInterceptTouchEvent方法可以中断事件的传递，重写此方法让它返回true，那么事件不会传递到子view中，onInterceptTouchEvent默认返回false；
+* 在OnTouchEvent中返回true，则父容器不会执行OnTouchEvent方法，在OnTouchEvent中返回false，则父容器会执行OnTouchEvent方法，且后续的所有事件都会在父容器中处理，不再向下传递。
 
+**举两个例子说明如何通过onInterceptTouchEvent方法中断事件的传递**
 
+第一个例子，一个LinearLayout中包含一个Button，LinearLayout和Button都设置onClick方法，很显然当我们点击Button时Button的onClick方法执行，当我们点击LinearLayout时LinearLayout的onClick方法执行；如果设置了log打印diapatchTouchEvent方法的执行顺序，那么可以发现：
 
+点击Button： activity dispatchTouchEvent -> linearlayout dispatchTouchEvent -> button dispatchTouchEvent
+
+点击LinearLayout： activity dispatchTouchEvent -> linearlayout dispatchTouchEvent
+
+如果我们希望LinearLayout拦截传给Button的事件，那么就需要用到onInterceptTouchEvent方法
+
+直接在自定义LinearLayout中重写onInterceptTouchEvent方法，让它返回true，则该LinearLayout下的所有子view都无法接收到事件
+
+```java
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        return true;
+    }
+```
+
+第二个例子，禁止ViewPager左右滑动，首先需要明白一个问题，为什么ViewPager可以使页面左右滑动，如果ViewPager中的Fragment中也包含一个可以左右滑动的控件，那么滑动会产生冲突吗？
+
+首先看ViewPager的源码
+
+```java
+// ViewPager.java 从onInterceptTouchEvent第一句注释就知道了，ViewPager就是通过onInterceptTouchEvent拦截实现的滑动
+// ViewPager主动调用onInterceptTouchEvent将ACTION_MOVE的事件拦截，而对其它事件进行其他处理，从而实现滑动操作仅能在ViewPager中处理
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        /*
+         * This method JUST determines whether we want to intercept the motion.
+         * If we return true, onMotionEvent will be called and we do the actual
+         * scrolling there.
+         */
+
+        final int action = ev.getAction() & MotionEvent.ACTION_MASK;
+
+        // Always take care of the touch gesture being complete.
+        // 首先看到ACTION_CANCEL和ACTION_UP没有做什么特别的判断直接放行了，不会拦截
+        if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
+            // Release the drag.
+            if (DEBUG) Log.v(TAG, "Intercept done!");
+            resetTouch();
+            return false;
+        }
+
+        // Nothing more to do here if we have decided whether or not we
+        // are dragging.
+        // 通过mIsBeingDragged判断是否要将事件拦截，这个参数在后面代码中被赋值，我们可以发现ACTION_DOWN是不在这里判断的，因为当手指
+        // 点击下去的那一刻，最终需要传递什么事件是不明确的，可能是ACTION_DOWN加ACTION_UP，也可能是ACTION_DOWN加ACTION_MOVE加ACTION_UP
+        if (action != MotionEvent.ACTION_DOWN) {
+            if (mIsBeingDragged) {
+                // 一旦后面的判断明确，那么mIsBeingDragged的值也是确定的，从而实现事件拦截
+                if (DEBUG) Log.v(TAG, "Intercept returning true!");
+                return true;
+            }
+            if (mIsUnableToDrag) {
+                if (DEBUG) Log.v(TAG, "Intercept returning false!");
+                return false;
+            }
+        }
+
+        switch (action) {
+            case MotionEvent.ACTION_MOVE: {
+                /*
+                 * mIsBeingDragged == false, otherwise the shortcut would have caught it. Check
+                 * whether the user has moved far enough from his original down touch.
+                 */
+
+                /*
+                * Locally do absolute value. mLastMotionY is set to the y value
+                * of the down event.
+                */
+                final int activePointerId = mActivePointerId;
+                if (activePointerId == INVALID_POINTER) {
+                    // If we don't have a valid id, the touch down wasn't on content.
+                    break;
+                }
+
+                final int pointerIndex = ev.findPointerIndex(activePointerId);
+                final float x = ev.getX(pointerIndex);
+                final float dx = x - mLastMotionX;
+                final float xDiff = Math.abs(dx);
+                final float y = ev.getY(pointerIndex);
+                final float yDiff = Math.abs(y - mInitialMotionY);
+                if (DEBUG) Log.v(TAG, "Moved x to " + x + "," + y + " diff=" + xDiff + "," + yDiff);
+                // ACTION_MOVE这里是一个比较关键的地方，canScroll会判断当前坐标是否存在可以滑动的子view，如果有，那么
+                // ViewPager不拦截
+                if (dx != 0 && !isGutterDrag(mLastMotionX, dx)
+                        && canScroll(this, false, (int) dx, (int) x, (int) y)) {
+                    // Nested view has scrollable area under this point. Let it be handled there.
+                    mLastMotionX = x;
+                    mLastMotionY = y;
+                    mIsUnableToDrag = true;
+                    return false;
+                }
+                // 反之，如果不存在可以滑动的子view，那么将mIsBeingDragged置为true，从而对后面所有的ACTION_MOVE进行拦截
+                if (xDiff > mTouchSlop && xDiff * 0.5f > yDiff) {
+                    if (DEBUG) Log.v(TAG, "Starting drag!");
+                    mIsBeingDragged = true;
+                    requestParentDisallowInterceptTouchEvent(true);
+                    setScrollState(SCROLL_STATE_DRAGGING);
+                    mLastMotionX = dx > 0
+                            ? mInitialMotionX + mTouchSlop : mInitialMotionX - mTouchSlop;
+                    mLastMotionY = y;
+                    setScrollingCacheEnabled(true);
+                } else if (yDiff > mTouchSlop) {
+                    // The finger has moved enough in the vertical
+                    // direction to be counted as a drag...  abort
+                    // any attempt to drag horizontally, to work correctly
+                    // with children that have scrolling containers.
+                    if (DEBUG) Log.v(TAG, "Starting unable to drag!");
+                    mIsUnableToDrag = true;
+                }
+                if (mIsBeingDragged) {
+                    // Scroll to follow the motion event
+                    if (performDrag(x)) {
+                        ViewCompat.postInvalidateOnAnimation(this);
+                    }
+                }
+                break;
+            }
+
+            case MotionEvent.ACTION_DOWN: {
+                /*
+                 * Remember location of down touch.
+                 * ACTION_DOWN always refers to pointer index 0.
+                 */
+                // ACTION_DOWN没有过多的操作，只是记录了点击的位置，对一些参数初始化
+                mLastMotionX = mInitialMotionX = ev.getX();
+                mLastMotionY = mInitialMotionY = ev.getY();
+                mActivePointerId = ev.getPointerId(0);
+                mIsUnableToDrag = false;
+
+                mIsScrollStarted = true;
+                mScroller.computeScrollOffset();
+                if (mScrollState == SCROLL_STATE_SETTLING
+                        && Math.abs(mScroller.getFinalX() - mScroller.getCurrX()) > mCloseEnough) {
+                    // Let the user 'catch' the pager as it animates.
+                    mScroller.abortAnimation();
+                    mPopulatePending = false;
+                    populate();
+                    mIsBeingDragged = true;
+                    requestParentDisallowInterceptTouchEvent(true);
+                    setScrollState(SCROLL_STATE_DRAGGING);
+                } else {
+                    completeScroll(false);
+                    mIsBeingDragged = false;
+                }
+
+                if (DEBUG) {
+                    Log.v(TAG, "Down at " + mLastMotionX + "," + mLastMotionY
+                            + " mIsBeingDragged=" + mIsBeingDragged
+                            + "mIsUnableToDrag=" + mIsUnableToDrag);
+                }
+                break;
+            }
+
+            case MotionEvent.ACTION_POINTER_UP:
+                onSecondaryPointerUp(ev);
+                break;
+        }
+
+        if (mVelocityTracker == null) {
+            mVelocityTracker = VelocityTracker.obtain();
+        }
+        mVelocityTracker.addMovement(ev);
+
+        /*
+         * The only time we want to intercept motion events is if we are in the
+         * drag mode.
+         */
+        // mIsBeingDragged的值代表了ACTION_MOVE是否被拦截
+        return mIsBeingDragged;
+    }
+```
+
+综上所述，ViewPager通过令onInterceptTouchEvent返回true，使得可以实现左右滑动的效果，那么如果onInterceptTouchEvent返回false，那么事件传递到子view中，则左右滑动效果消失
+
+```java
+public class CustomViewPager extends ViewPager {
+    // CustomViewPager control scroll enable
+    private boolean enabled;
+
+    public CustomViewPager(@NonNull Context context) {
+        super(context);
+        this.enabled = true;
+    }
+
+    public CustomViewPager(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        this.enabled = true;
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (this.enabled) {
+            return super.onTouchEvent(event);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent event) {
+        if (this.enabled) {
+            return super.onInterceptTouchEvent(event);
+        }
+        return false;
+    }
+
+    public void setPagingEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+}
+```
 
 
 

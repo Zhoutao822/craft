@@ -199,7 +199,8 @@ public class Fragment2 extends Fragment {
 具体可以参考[FragmentTransitionSample](https://github.com/bherbst/FragmentTransitionSample)，其中还包括自定义TransitionSet的实现。需要注意的是，在RecyclerView中添加`transitionName`的方式
 
 ```java
-// 这里对应了上面说到的问题，Fragment1中的transitionName不重要，仅仅需要让它们的transitionName唯一即可
+// 这里对应了上面说到的问题，Fragment1中的transitionName不重要，仅仅需要让它们的transitionName唯一即可，
+// 否则会出现显示其他图片的异常
 ViewCompat.setTransitionName(viewHolder.image, position + "_image");
 
 getActivity().getSupportFragmentManager()
@@ -419,6 +420,251 @@ getWindow().setEnterTransition(fade);
 ### 2.2 RecyclerView复杂效果
 
 上面写的代码都是用的本地图片，如果从网络中加载图片并在不同Activity中跳转，那么必然需要考虑在两个Activity中加载图片时的缓存时间，常用的图片加载框架有Picasso和Glide，可以参考上面给出的[链接](https://mikescamell.com/shared-element-transitions-part-4-recyclerview/)。
+
+首先获取图片数据
+
+```java
+class Constants {
+
+    static List<String> getImageUrls() {
+        List<String> data = new ArrayList<>();
+        data.add("https://i.loli.net/2020/01/02/ClMXcUkJNETpYHb.jpg");
+        data.add("https://i.loli.net/2020/01/02/ulnhD8S79w4IfaY.jpg");
+        data.add("https://i.loli.net/2020/01/02/i9IFevNYqKVRcXP.jpg");
+        data.add("https://i.loli.net/2020/01/02/7QDskmZunBg4GEj.jpg");
+        data.add("https://i.loli.net/2020/01/02/eHzuXSqIoUbh8Mc.jpg");
+        data.add("https://i.loli.net/2020/01/02/biSqYO73CLvjh8p.jpg");
+        data.add("https://i.loli.net/2020/01/02/a4NjuqfMmckoVT2.jpg");
+        data.add("https://i.loli.net/2020/01/02/jSoFtq7VRBM6TUZ.jpg");
+        data.add("https://i.loli.net/2020/01/02/nw3vUZBlyIph1oH.jpg");
+        data.add("https://i.loli.net/2020/01/02/y3wGlkoXq4EWSDt.jpg");
+        return data;
+    }
+}
+```
+
+然后定义RecyclerView相关代码
+
+```java
+public class MyAdapter extends RecyclerView.Adapter<MyAdapter.MyViewHolder> {
+
+    private List<String> data;
+
+    private Context context;
+
+    public MyAdapter(List<String> data, Context context, OnItemClickListener onItemClickListener) {
+        this.data = data;
+        this.context = context;
+        this.onItemClickListener = onItemClickListener;
+    }
+
+    @NonNull
+    @Override
+    public MyViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(context).inflate(R.layout.layout_item, parent, false);
+        return new MyViewHolder(view);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull final MyViewHolder holder, final int position) {
+        // 这里没有设置imageView和textView的transitionName也可以正常运行
+        String url = data.get(position);
+        holder.textView.setText(url);
+        loadImage(url, holder);
+        holder.imageView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                onItemClickListener.onItemClick(holder, position);
+            }
+        });
+    }
+
+    // 分别通过Glide和Picasso加载图片
+    private void loadImage(String url, MyViewHolder holder) {
+        Glide.with(context)
+                .load(url)
+                .centerCrop()
+                .into(holder.imageView);
+//        Picasso.get()
+//                .load(url)
+//                .fit()
+//                .centerCrop()
+//                .into(holder.imageView);
+    }
+
+    @Override
+    public int getItemCount() {
+        return data.size();
+    }
+
+    class MyViewHolder extends RecyclerView.ViewHolder {
+
+        public ImageView imageView;
+        public TextView textView;
+
+        public MyViewHolder(@NonNull View itemView) {
+            super(itemView);
+            imageView = itemView.findViewById(R.id.item_image);
+            textView = itemView.findViewById(R.id.item_text);
+        }
+    }
+
+    private OnItemClickListener onItemClickListener;
+
+    public interface OnItemClickListener {
+        void onItemClick(MyViewHolder viewHolder, int position);
+    }
+}
+```
+
+```xml
+<!-- layout_item.xml -->
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="150dp"
+    android:layout_marginBottom="10dp"
+    android:orientation="vertical">
+
+    <ImageView
+        android:id="@+id/item_image"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_gravity="center"
+        tools:src="@drawable/ic_launcher_foreground" />
+
+    <TextView
+        android:id="@+id/item_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:lines="1"
+        android:textSize="16sp"
+        tools:text="aaaaaa" />
+
+</LinearLayout>
+```
+
+然后是Activity的代码
+
+```java
+// ThirdActivity.java
+public class ThirdActivity extends AppCompatActivity implements MyAdapter.OnItemClickListener {
+
+    private RecyclerView recyclerView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_third);
+
+        MyAdapter adapter = new MyAdapter(Constants.getImageUrls(), this, this);
+        recyclerView = findViewById(R.id.list);
+        recyclerView.setLayoutManager(new GridLayoutManager(this, 2));
+        recyclerView.setAdapter(adapter);
+    }
+
+    @Override
+    public void onItemClick(MyAdapter.MyViewHolder viewHolder, int position) {
+        Intent intent = new Intent(ThirdActivity.this, ForthActivity.class);
+        intent.putExtra("position", position);
+        // 与单个共享元素不同的是，多个共享元素动画需要使用Pair传参，而且需要强制转换类型为View
+        Pair<View, String> imagePair = Pair.create((View)viewHolder.imageView, "image");
+        Pair<View, String> textPair = Pair.create((View)viewHolder.textView, "text");
+        ActivityOptionsCompat options = ActivityOptionsCompat.
+                makeSceneTransitionAnimation(this, imagePair, textPair);
+        startActivity(intent, options.toBundle());
+    }
+}
+
+// ForthActivity.java
+public class ForthActivity extends AppCompatActivity {
+
+    private TextView textView;
+    private ImageView imageView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_forth);
+        int position = getIntent().getIntExtra("position", 0);
+        textView = findViewById(R.id.text_detail);
+        imageView = findViewById(R.id.image_detail);
+        textView.setText(Constants.getImageUrls().get(position));
+        loadImage(Constants.getImageUrls().get(position), imageView);
+    }
+
+    // 分别通过Glide和Picasso加载图片，注意这里与MyAdapter使用不同的框架也是没有问题的
+    private void loadImage(String url, ImageView view) {
+        // 关键代码supportPostponeEnterTransition()方法，可以使得Activity
+        // 延迟显示，直到执行了supportStartPostponedEnterTransition()方法。
+        // 也就是说，为了使图片能够先从网络上缓存下来再显示，可以在图片缓存成功的
+        // 回调方法中调用supportStartPostponedEnterTransition()
+        supportPostponeEnterTransition();
+
+        Glide.with(this)
+                .load(url)
+                .centerCrop()
+                .dontAnimate() // 实测这一行没有什么用
+                .listener(new RequestListener<Drawable>() {
+                    @Override
+                    public boolean onLoadFailed(@Nullable GlideException e, Object model, Target<Drawable> target, boolean isFirstResource) {
+                        supportStartPostponedEnterTransition();
+                        return false;
+                    }
+
+                    @Override
+                    public boolean onResourceReady(Drawable resource, Object model, Target<Drawable> target, DataSource dataSource, boolean isFirstResource) {
+                        supportStartPostponedEnterTransition();
+                        return false;
+                    }
+                })
+                .into(view);
+
+
+//        Picasso.get()
+//                .load(url)
+//                .noFade()  // 实测这一行没有什么用
+//                .into(view, new Callback() {
+//                    @Override
+//                    public void onSuccess() {
+//                        supportStartPostponedEnterTransition();
+//                    }
+//
+//                    @Override
+//                    public void onError(Exception e) {
+//                        supportStartPostponedEnterTransition();
+//                    }
+//                });
+    }
+}
+```
+
+最终效果
+
+{% asset_img share5.gif %}
+
+这个显示效果有几个问题，一是TextView字体大小突变，二是图片返回时会有微小的大小反弹现象，三是图片如果卡在状态栏上会出现短时间覆盖状态栏的现象，最后是点击时不会立即跳转，会出现明显的卡顿。如果需要解决上述几个问题，可以参考[Github animation-samples](https://github.com/android/animation-samples)中的Unslpash示例。
+
+{% asset_img share6.gif %}
+
+可以发现这个示例没有出现上面我所发生的显示效果问题，如果仔细查看代码可以发现为了优化这个效果加入了一些的自定义动画以及自定义View。
+
+## 3. 复杂效果的优化
+
+
+
+## 4. 使用技巧总结
+
+1. Fragment中使用时，当前Fragment的共享元素的`transitionName`必须存在但是与目的地Fragment不同也能用，且RecyclerView中的每一个共享元素都必须设置为不同的`transitionName`（Activity中当前Activity的`transitionName`可以不设置，包括使用了RecyclerView，目的地Activity必须设置），**实际使用时请务必将对应共享元素的`transitionName`设置为相同**；
+2. Fragment中使用时，当目的地Fragment中共享元素被嵌套了多层，则可能出现滑动动画缺失现象，可以通过`marginTop:1dp`解决；Activity中不会有这种现象；
+3. 切换动画产生时会导致状态栏、ActionBar以及Toolbar的闪烁，可以通过在动画中将这些View的id排除即可避免；
+4. 如果使用了Glide或者Picasso等图片加载框架从网络请求加载图片，需要在Activity中设置`supportPostponeEnterTransition()`以及`supportStartPostponedEnterTransition()`方法来确保图片能够先缓存再显示（Fragment中是`postponeEnterTransition()`和`startPostponedEnterTransition()`），但是会导致另一个问题，点击跳转非常卡顿；
+5. ViewPager配合使用实现左右滑动查看图片时，返回动画会出错，显示错误的图片，此时可以通过对ViewPager中的Fragment设置`setSharedElementReturnTransition(null)`来禁用返回动画（[参考](https://mikescamell.com/shared-element-transitions-part-4-recyclerview/)）。
+
+
 
 
 

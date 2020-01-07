@@ -654,14 +654,278 @@ public class ForthActivity extends AppCompatActivity {
 
 ## 3. 复杂效果的优化
 
+具体可以参考[Github animation-samples](https://github.com/android/animation-samples)中的Unslpash示例。
+
+Unslpash示例具体实现了一下几个细节效果：
+
+1. 在图片详情页使用了ViewPager，可以左右滑动切换图片；
+2. 当我们左右滑动切换图片再返回时，RecyclerView会滑动到对应的图片，而且有返回动画效果；
+3. 点击查看图片详情时动画没有卡顿的感觉，而且字体大小有良好的变换动画效果，不是突变；
+4. ViewPager左右滑动也没有产生加载的卡顿现象。
+
+### 3.1 效果实现分析
+
+首先是数据来源，Unslpash示例数据来自于`https://unsplash.it`，通过Retrofit获取，示例仅获取12张图片，构造的Photo数据结构就不用分析了，很简单。
+
+然后是两个Activity的动画效果，是通过Theme设置的，分别对MainActivity和DetailActivity使用不同的Theme，即最主要的动画效果是通过xml定义的，java代码只控制逻辑
+
+```xml
+<!-- MainActivity -->
+<style name="App.Home">
+    <item name="android:windowExitTransition">@transition/grid_exit</item>
+    <item name="android:windowReenterTransition">@transition/grid_reenter</item>
+</style>
+
+<!-- DetailActivity -->
+<style name="App.Details">
+    <item name="android:windowSharedElementEnterTransition">
+        @transition/shared_main_detail
+    </item>
+</style>
+```
+
+MainActivity的非共享元素移出界面时的效果是grid_exit，即爆炸效果；返回MainActivity时是grid_reenter，即从上向下滑动效果；DetailActivity的共享元素进入界面的效果是shared_main_detail，分别定义了photo和text的动画效果，photo使用了传统的几个动画就不说了，text使用的是自定义的动画，这个TextResize类还是有点复杂，所以会用就行了，而且不会出现在java代码中。
+
+```xml
+<!-- grid_exit.xml -->
+<explode />
+
+<!-- grid_reenter.xml -->
+<slide
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:slideEdge="top"
+    android:duration="300"
+    android:interpolator="@android:interpolator/linear_out_slow_in">
+</slide>
+
+<!-- shared_main_detail.xml -->
+<transitionSet xmlns:android="http://schemas.android.com/apk/res/android">
+    <transitionSet>
+        <targets>
+            <target android:targetId="@id/photo" />
+        </targets>
+        <changeBounds>
+            <arcMotion android:maximumAngle="50"/>
+        </changeBounds>
+        <changeTransform />
+        <changeClipBounds />
+        <changeImageTransform />
+    </transitionSet>
+    <transitionSet>
+        <targets>
+            <target android:targetId="@id/author" />
+        </targets>
+        <transition class="com.example.android.unsplash.transition.TextResize" />
+        <changeBounds />
+    </transitionSet>
+    <!-- recolor不知道有什么用，删了也没有区别 -->
+    <recolor>
+        <targets>
+            <target android:targetId="@android:id/statusBarBackground" />
+            <target android:targetId="@android:id/navigationBarBackground" />
+        </targets>
+    </recolor>
+</transitionSet>
+```
+
+从MainActivity点击跳转到DetailActivity时需要通过Intent传入几个数据，比如当前界面中text的属性值，点击的图片索引以及从网络请求得到的图片url等等
+
+```java
+@NonNull
+private static Intent getDetailActivityStartIntent(Activity host, ArrayList<Photo> photos,
+                                                    int position, PhotoItemBinding binding) {
+    final Intent intent = new Intent(host, DetailActivity.class);
+    intent.setAction(Intent.ACTION_VIEW);
+    intent.putParcelableArrayListExtra(IntentUtil.PHOTO, photos);
+    intent.putExtra(IntentUtil.SELECTED_ITEM_POSITION, position);
+    intent.putExtra(IntentUtil.FONT_SIZE, binding.author.getTextSize());
+    intent.putExtra(IntentUtil.PADDING,
+            new Rect(binding.author.getPaddingLeft(),
+                    binding.author.getPaddingTop(),
+                    binding.author.getPaddingRight(),
+                    binding.author.getPaddingBottom()));
+    intent.putExtra(IntentUtil.TEXT_COLOR, binding.author.getCurrentTextColor());
+    return intent;
+}
+```
+
+在DetailActivity中通过getIntent方法获取传入的数据，构造DetailSharedElementEnterCallback，通过setEnterSharedElementCallback设置回调；setEnterSharedElementCallback可以监听共享元素进入此Activity时的状态，由sharedElementCallback自定义
+
+```java
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    // ...
+    Intent intent = getIntent();
+    sharedElementCallback = new DetailSharedElementEnterCallback(intent);
+    setEnterSharedElementCallback(sharedElementCallback);
+    initialItem = intent.getIntExtra(IntentUtil.SELECTED_ITEM_POSITION, 0);
+    setUpViewPager(intent.<Photo>getParcelableArrayListExtra(IntentUtil.PHOTO));
+    // ...
+}
+```
+
+DetailSharedElementEnterCallback的主要功能是在Activity切换时调整TextView的属性以及对共享元素进行绑定。从这个Callback可以看出来实际动画效果是发生在DetailActivity中，首先当处于onCreate方法中，在调用`super.onCreate(savedInstanceState);`之前设置DetailSharedElementEnterCallback，此时动画还未开始。
+
+按照顺序执行`onMapSharedElements->onSharedElementStart->onSharedElementEnd`方法，在onMapSharedElements方法中需要将对应的共享元素View与其transitionName关联起来，这里的作用其实等价于在MainActivity中生成的Pair对象，试想一下如果我们在点击时绑定的是position为1的ImageView，而如果我们在ViewPager中滑动后position变为4，那么我们就需要更新Pair对象，否则返回时动画效果就不是返回position为4的ImageView。所以只能在Callback中处理，由于使用了Databinding而且两个Activity中的ImageView的transitionName相同，所以简单的添加即可，将其他不需要变换动画的元素移出Map也可以在这里操作。
+
+然后在onSharedElementStart方法中会先将DetailActivity中的TextView的属性修改为MainActivity中对应TextView的属性，最后在onSharedElementEnd方法中将TextView设置为DetailActivity中原本的属性即可，也就是说从`onSharedElementStart->onSharedElementEnd`就是动画的过程了。
+
+```java
+public class DetailSharedElementEnterCallback extends SharedElementCallback {
+// ...
+
+    @Override
+    public void onSharedElementStart(List<String> sharedElementNames,
+                                     List<View> sharedElements,
+                                     List<View> sharedElementSnapshots) {
+        TextView author = getAuthor();
+        targetTextSize = author.getTextSize();
+        targetTextColors = author.getTextColors();
+        targetPadding = new Rect(author.getPaddingLeft(),
+                author.getPaddingTop(),
+                author.getPaddingRight(),
+                author.getPaddingBottom());
+        if (IntentUtil.hasAll(intent,
+                IntentUtil.TEXT_COLOR, IntentUtil.FONT_SIZE, IntentUtil.PADDING)) {
+            author.setTextColor(intent.getIntExtra(IntentUtil.TEXT_COLOR, Color.BLACK));
+            float textSize = intent.getFloatExtra(IntentUtil.FONT_SIZE, targetTextSize);
+            author.setTextSize(TypedValue.COMPLEX_UNIT_PX, textSize);
+            Rect padding = intent.getParcelableExtra(IntentUtil.PADDING);
+            author.setPadding(padding.left, padding.top, padding.right, padding.bottom);
+        }
+    }
+
+    @Override
+    public void onSharedElementEnd(List<String> sharedElementNames,
+                                   List<View> sharedElements,
+                                   List<View> sharedElementSnapshots) {
+        TextView author = getAuthor();
+        author.setTextSize(TypedValue.COMPLEX_UNIT_PX, targetTextSize);
+        if (targetTextColors != null) {
+            author.setTextColor(targetTextColors);
+        }
+        if (targetPadding != null) {
+            author.setPadding(targetPadding.left, targetPadding.top,
+                    targetPadding.right, targetPadding.bottom);
+        }
+        if (currentDetailBinding != null) {
+            forceSharedElementLayout(currentDetailBinding.description);
+        }
+    }    
+
+    @Override
+    public void onMapSharedElements(List<String> names, Map<String, View> sharedElements) {
+        removeObsoleteElements(names, sharedElements, mapObsoleteElements(names));
+        mapSharedElement(names, sharedElements, getAuthor());
+        mapSharedElement(names, sharedElements, getPhoto());
+    }
+
+    public void setBinding(@NonNull DetailViewBinding binding) {
+        currentDetailBinding = binding;
+        currentPhotoBinding = null;
+    }
+
+    public void setBinding(@NonNull PhotoItemBinding binding) {
+        currentPhotoBinding = binding;
+        currentDetailBinding = null;
+    }
+
+    private TextView getAuthor() {
+        if (currentPhotoBinding != null) {
+            return currentPhotoBinding.author;
+        } else if (currentDetailBinding != null) {
+            return currentDetailBinding.author;
+        } else {
+            throw new NullPointerException("Must set a binding before transitioning.");
+        }
+    }
+
+    private ImageView getPhoto() {
+        if (currentPhotoBinding != null) {
+            return currentPhotoBinding.photo;
+        } else if (currentDetailBinding != null) {
+            return currentDetailBinding.photo;
+        } else {
+            throw new NullPointerException("Must set a binding before transitioning.");
+        }
+    }
+
+    /**
+     * Maps all views that don't start with "android" namespace.
+     *
+     * @param names All shared element names.
+     * @return The obsolete shared element names.
+     */
+    @NonNull
+    private List<String> mapObsoleteElements(List<String> names) {
+        List<String> elementsToRemove = new ArrayList<>(names.size());
+        for (String name : names) {
+            if (name.startsWith("android")) continue;
+            elementsToRemove.add(name);
+        }
+        return elementsToRemove;
+    }
+
+    /**
+     * Removes obsolete elements from names and shared elements.
+     *
+     * @param names            Shared element names.
+     * @param sharedElements   Shared elements.
+     * @param elementsToRemove The elements that should be removed.
+     */
+    private void removeObsoleteElements(List<String> names,
+                                        Map<String, View> sharedElements,
+                                        List<String> elementsToRemove) {
+        if (elementsToRemove.size() > 0) {
+            names.removeAll(elementsToRemove);
+            for (String elementToRemove : elementsToRemove) {
+                sharedElements.remove(elementToRemove);
+            }
+        }
+    }
+
+    /**
+     * Puts a shared element to transitions and names.
+     *
+     * @param names          The names for this transition.
+     * @param sharedElements The elements for this transition.
+     * @param view           The view to add.
+     */
+    private void mapSharedElement(List<String> names, Map<String, View> sharedElements, View view) {
+        String transitionName = view.getTransitionName();
+        names.add(transitionName);
+        sharedElements.put(transitionName, view);
+    }    
+
+    private void forceSharedElementLayout(View view) {
+        int widthSpec = View.MeasureSpec.makeMeasureSpec(view.getWidth(),
+                View.MeasureSpec.EXACTLY);
+        int heightSpec = View.MeasureSpec.makeMeasureSpec(view.getHeight(),
+                View.MeasureSpec.EXACTLY);
+        view.measure(widthSpec, heightSpec);
+        view.layout(view.getLeft(), view.getTop(), view.getRight(), view.getBottom());
+    }
+}
+```
+
+以上就是从MainActivity点击跳转到DetailActivity的全部流程，当然Unsplash示例还有ViewPager以及返回动画效果。
+
+当我们左右滑动时会调用DetailViewPagerAdapter的setPrimaryItem，在这个方法中我们设置的上面Callback的View binding，将其置为当前的ImageView，此时如果点击返回键，那么Callback的执行顺序是`onMapSharedElements->onMapSharedElements->onSharedElementEnd->onSharedElementStart->onSharedElementStart->onSharedElementEnd`，这里分为两个阶段，因为此时在两个Activity中都有Callback，第一个onMapSharedElements是DetailActivity的，这里重新绑定position为4的ImageView；第二个onMapSharedElements是MainActivity的的，在onActivityReenter方法（Activity返回）中执行，此时MainActivity已经知道了当前position为4，因此滑动RecyclerView到position为4的位置，并且将其对应的binding传入MainActivity的Callback中；然后是`onSharedElementEnd->onSharedElementStart`，这个状态是DetailActivity的动作，很显然这个效果就是上面动画的逆过程，
+
+
+
+
+
+
+### 3.2 尝试在Fragment中实现类似效果
 
 
 ## 4. 使用技巧总结
 
-1. Fragment中使用时，当前Fragment的共享元素的`transitionName`必须存在但是与目的地Fragment不同也能用，且RecyclerView中的每一个共享元素都必须设置为不同的`transitionName`（Activity中当前Activity的`transitionName`可以不设置，包括使用了RecyclerView，目的地Activity必须设置），**实际使用时请务必将对应共享元素的`transitionName`设置为相同**；
+1. Fragment中使用时，当前Fragment的共享元素的`transitionName`必须存在但是与目的地Fragment不同也能用，且RecyclerView中的每一个共享元素都必须设置为不同的`transitionName`（Activity中当前Activity的`transitionName`可以不设置，包括使用了RecyclerView，目的地Activity必须设置），**但是实际使用时请务必将对应共享元素的`transitionName`设置为相同（RecyclerView除外）**；
 2. Fragment中使用时，当目的地Fragment中共享元素被嵌套了多层，则可能出现滑动动画缺失现象，可以通过`marginTop:1dp`解决；Activity中不会有这种现象；
 3. 切换动画产生时会导致状态栏、ActionBar以及Toolbar的闪烁，可以通过在动画中将这些View的id排除即可避免；
-4. 如果使用了Glide或者Picasso等图片加载框架从网络请求加载图片，需要在Activity中设置`supportPostponeEnterTransition()`以及`supportStartPostponedEnterTransition()`方法来确保图片能够先缓存再显示（Fragment中是`postponeEnterTransition()`和`startPostponedEnterTransition()`），但是会导致另一个问题，点击跳转非常卡顿；
+4. 如果使用了Glide或者Picasso等图片加载框架从网络请求加载图片，可以在Activity中设置`supportPostponeEnterTransition()`以及`supportStartPostponedEnterTransition()`方法来确保图片能够先缓存再显示（Fragment中是`postponeEnterTransition()`和`startPostponedEnterTransition()`），但是会导致另一个问题，点击跳转非常卡顿；
 5. ViewPager配合使用实现左右滑动查看图片时，返回动画会出错，显示错误的图片，此时可以通过对ViewPager中的Fragment设置`setSharedElementReturnTransition(null)`来禁用返回动画（[参考](https://mikescamell.com/shared-element-transitions-part-4-recyclerview/)）。
 
 
